@@ -303,16 +303,16 @@ type CommentResponse struct {
 	Type         int    `json:"type"`
 }
 
-// MediaCommentsResponse struct for get array of comments of a media
-type MediaCommentsResponse struct {
+// MediaComments struct for get array of comments of a media
+type MediaComments struct {
 	StatusResponse
 	StringPagination
 	CommentLikesEnabled bool              `json:"comment_likes_enabled"`
 	Comments            []CommentResponse `json:"comments"`
 }
 
-// MediaLikersResponse struct for get array of users that like a media
-type MediaLikersResponse struct {
+// MediaLikers struct for get array of users that like a media
+type MediaLikers struct {
 	StatusResponse
 	UserCount int    `json:"user_count"`
 	Users     []User `json:"users"`

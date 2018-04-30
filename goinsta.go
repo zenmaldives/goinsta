@@ -197,18 +197,6 @@ func (insta *Instagram) Logout() error {
 	return err
 }
 
-// MediaLikers return likers of a media , input is mediaid of a media
-func (insta *Instagram) MediaLikers(mediaID string) (MediaLikersResponse, error) {
-	body, err := insta.sendSimpleRequest("media/%s/likers/?", mediaID)
-	if err != nil {
-		return MediaLikersResponse{}, err
-	}
-	resp := MediaLikersResponse{}
-	err = json.Unmarshal(body, &resp)
-
-	return resp, err
-}
-
 // SyncFeatures simulates Instagram app behavior
 func (insta *Instagram) SyncFeatures() error {
 	data, err := insta.prepareData(map[string]interface{}{
