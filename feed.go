@@ -1,5 +1,12 @@
 package goinsta
 
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/erikdubbelboer/fasthttp"
+)
+
 // UserFeed contains user feeds
 type UserFeed struct {
 	user *User
@@ -48,43 +55,7 @@ func (uf *UserFeed) Reset() {
 //
 // ID or IDStr can be used to interfact with specified user.
 func (feed *UserFeed) Get() (err error) {
-	userID := user.getID()
-	if userID == "" {
-		return ErrNoID
-	}
-
-	insta := user.insta
-	req := acquireRequest()
-	req.args = fasthttp.AcquireArgs()
-	defer releaseRequest(req)
-
-	req.SetEndpoint(fmt.Sprintf("feed/user/%s/", userID))
-	req.args.Set("max_id", feed.NextMaxID)
-	req.args.Set("rank_token", insta.Info.RankToken)
-	req.args.Set("min_timestamp", feed.MinTimestamp)
-	req.args.Set("ranked_content", "true")
-
-	body, err := insta.sendRequest(req)
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(body, feed)
-	if err == nil {
-		feed.IDStr = strconv.FormatInt(feed.ID, 10)
-	}
-	return
-}
-
-// Latest gets the latest page of users feed.
-func (feed *UserFeed) Latest() error {
-	feed.Reset()
-	return feed.Get()
-}
-
-// Tagged sets tagged media in feed structure
-func (feed *UserFeed) Tagged() error {
-	userID := user.getID()
+	userID := feed.user.getID()
 	if userID == "" {
 		return ErrNoID
 	}
@@ -105,6 +76,37 @@ func (feed *UserFeed) Tagged() error {
 		return err
 	}
 
-	err = json.Unmarshal(body, feed)
-	return err
+	return json.Unmarshal(body, feed)
+}
+
+// Latest gets the latest page of users feed.
+func (feed *UserFeed) Latest() error {
+	feed.Reset()
+	return feed.Get()
+}
+
+// Tagged sets tagged media in feed structure
+func (feed *UserFeed) Tagged() error {
+	userID := feed.user.getID()
+	if userID == "" {
+		return ErrNoID
+	}
+
+	insta := feed.user.insta
+	req := acquireRequest()
+	req.args = fasthttp.AcquireArgs()
+	defer releaseRequest(req)
+
+	req.SetEndpoint(fmt.Sprintf("feed/user/%s/", userID))
+	req.args.Set("max_id", feed.NextMaxID)
+	req.args.Set("rank_token", insta.Info.RankToken)
+	req.args.Set("min_timestamp", feed.MinTimestamp)
+	req.args.Set("ranked_content", "true")
+
+	body, err := insta.sendRequest(req)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(body, feed)
 }
