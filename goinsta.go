@@ -388,40 +388,6 @@ func (insta *Instagram) RemoveProfilePicture() (ProfileDataResponse, error) {
 	return result, err
 }
 
-// GetuserID return information of a user by user ID
-func (insta *Instagram) GetUserByID(userID int64) (GetUsernameResponse, error) {
-	result := GetUsernameResponse{}
-	data, err := insta.prepareData()
-	if err != nil {
-		return result, err
-	}
-
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("users/%d/info/", userID),
-		PostData: generateSignature(data),
-	})
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-
-	return result, err
-}
-
-// GetUsername return information of a user by username
-func (insta *Instagram) GetUserByUsername(username string) (GetUsernameResponse, error) {
-	body, err := insta.sendSimpleRequest("users/%s/usernameinfo/", username)
-	if err != nil {
-		return GetUsernameResponse{}, err
-	}
-
-	resp := GetUsernameResponse{}
-	err = json.Unmarshal(body, &resp)
-
-	return resp, err
-}
-
 // SearchLocation return search location by lat & lng & search query in instagram
 func (insta *Instagram) SearchLocation(lat, lng, search string) (SearchLocationResponse, error) {
 	if lat == "" || lng == "" {
