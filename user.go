@@ -6,6 +6,10 @@ package goinsta
 type User struct {
 	insta *Instagram
 
+	// User objects
+	Feed *UserFeed `json:"-"`
+
+	// Json objects and user data
 	Username                   string `json:"username"`
 	HasAnonymousProfilePicture bool   `json:"has_anonymouse_profile_picture"`
 	ProfilePictureID           string `json:"profile_pic_id"`
@@ -19,35 +23,26 @@ type User struct {
 	IsUnpublished              bool   `json:"is_unpublished"`
 }
 
-// UserFeed - Returns the Instagram feed for the given user id.
-// You can use maxID and minTimestamp for pagination, otherwise leave them empty to get the latest page only.
-func (user *User) Feed(maxID, minTimestamp string) (resp UserFeedResponse, err error) {
-	insta := users.insta
-	req := acquireRequest()
-	req.args = fasthttp.AcquireArgs()
-	defer releaseRequest(req)
-
-	req.SetEndpoint(fmt.Sprintf("feed/user/%d/", userID))
-	req.args.Set("max_id", maxID)
-	req.args.Set("rank_token", insta.Info.RankToken)
-	req.args.Set("min_timestamp", minTimestamp)
-	req.args.Set("ranked_content", "true")
-
-	body, err := insta.sendRequest(req)
-	if err != nil {
-		return resp, err
+func NewUser(insta *Instagram) User {
+	user := &User{
+		insta: insta,
 	}
-
-	err = json.Unmarshal(body, &resp)
-	if err == nil {
-		resp.IDStr = strconv.FormatInt(resp.ID, 10)
-	}
-	return
+	user.Feed = NewFeed(user)
+	return user
 }
 
-// LatestFeed gets the latest page of your own Instagram feed.
-func (user *User) LatestFeed() (UserFeedResponse, error) {
-	return insta.Current.UserFeed("", "")
+func (user *User) getID() string {
+	var userID string
+
+	if user.ID != 0 {
+		userID = fmt.Sprintf("%d", user.ID)
+	} else {
+		if user.IDStr == "" {
+			return ""
+		}
+		userID = user.IDStr
+	}
+	return userID
 }
 
 // UserTaggedFeed - Returns the feed for medua a given user is tagged in
@@ -74,4 +69,51 @@ func (user *User) UserTaggedFeed(userID, maxID int64, minTimestamp string) (User
 	err = json.Unmarshal(body, &resp)
 
 	return resp, err
+}
+
+// UserFollowing return followings of specific user.
+//
+// UserID is the id of the target user.
+// maxID is the id of the pagination. If is the first request set to 0.
+//
+func (users *Users) Following(userID int64, maxID string) (r UsersResponse, err error) {
+	insta := users.insta
+	req := acquireRequest()
+	req.args = fasthttp.AcquireArgs()
+	defer releaseRequest(req)
+
+	req.SetEndpoint(fmt.Sprintf("friendships/%d/following/", userID))
+	req.args.Set("max_id", maxID)
+	req.args.Set("ig_sig_key_version", goInstaSigKeyVersion)
+	req.args.Set("rank_token", insta.Info.RankToken)
+
+	body, err := insta.sendRequest(req)
+	if err != nil {
+		return r, err
+	}
+
+	err = json.Unmarshal(body, &r)
+	return r, err
+}
+
+// UserFollowers return followers of specific user
+// skip maxid with empty string for get first page
+func (users *Users) Followers(userID int64, maxID string) (r UsersResponse, err error) {
+	insta := users.insta
+	req := acquireRequest()
+	req.args = fasthttp.AcquireArgs()
+	defer releaseRequest(req)
+
+	req.SetEndpoint(fmt.Sprintf("friendships/%d/followers/", userID))
+	req.args.Set("max_id", maxID)
+	req.args.Set("ig_sig_key_version", goInstaSigKeyVersion)
+	req.args.Set("rank_token", insta.Info.RankToken)
+
+	body, err := insta.sendRequest(req)
+	if err != nil {
+		return r, err
+	}
+
+	err = json.Unmarshal(body, &r)
+	return r, err
 }

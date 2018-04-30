@@ -7,6 +7,7 @@ type Media struct {
 	insta *Instagram
 
 	ID       string
+	Info     MediaInfo
 	Comments MediaComments
 	Likers   MediaLikers
 }
@@ -54,4 +55,34 @@ func (media *Media) Likers() error {
 
 	err = json.Unmarshal(body, &media.Likers)
 	return err
+}
+
+// MediaInfo return media information
+func (media *Media) Info() error {
+	insta := media.insta
+	result := MediaInfoResponse{}
+	mediaID := media.ID
+
+	req := acquireRequest()
+	req.args = fasthttp.AcquireArgs()
+	defer releaseRequest(req)
+
+	req.SetEndpoint(fmt.Sprintf("media/%s/info", mediaID))
+
+	data, err := insta.prepareData(map[string]interface{}{
+		"media_id": mediaID,
+	})
+	if err != nil {
+		return result, err
+	}
+	req.SetData(generateSignature(data))
+
+	body, err := insta.sendRequest(req)
+	if err != nil {
+		return result, err
+	}
+
+	err = json.Unmarshal(body, &result)
+
+	return result, err
 }
