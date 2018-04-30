@@ -2,8 +2,10 @@ package goinsta
 
 // Users represents instagram list of users
 type Users struct {
-	insta  *Instagram
-	cursor int64
+	user *User
+
+	// followers
+	f bool
 
 	StatusResponse
 	BigList   bool   `json:"big_list"`
@@ -12,9 +14,14 @@ type Users struct {
 	NextMaxID string `json:"next_max_id"`
 }
 
-func NewUsers(insta *Instagram) *Users {
+// NewUsers returns a list of users.
+//
+// If followers it's true when Get is called it will be load followers.
+// In other case it will be load following.
+func NewUsers(user *User, followers bool) *Users {
 	users := &Users{
 		insta: insta,
+		f:     followers,
 	}
 	return users
 }
@@ -23,4 +30,121 @@ func NewUsers(insta *Instagram) *Users {
 // To keep last data use AddNext.
 func (users *Users) Next() bool {
 	// TODO
+}
+
+// Get gets following or follower values into Users structure
+//
+// User.ID is the id of the target user.
+// User.Following/Followers.NextMaxID is the id of the pagination. If is the first request set to 0.
+//
+// This function does not get all following/followers. To get all following use #Users.All.
+func (users *Users) Get() (err error) {
+	switch {
+	case users.f:
+		err = users.followers()
+	default:
+		err = users.following()
+	}
+	return err
+}
+
+func (users *Users) following() error {
+	user := users.user
+	userID := user.getID()
+	if userID == "" {
+		return ErrNoID
+	}
+	if user.Following == nil {
+		user.Following = NewUsers(insta)
+	}
+
+	maxID := user.Following.MaxID
+	insta := user.insta
+	req := acquireRequest()
+	req.args = fasthttp.AcquireArgs()
+	defer releaseRequest(req)
+
+	req.SetEndpoint(fmt.Sprintf("friendships/%s/following/", userID))
+	req.args.Set("max_id", maxID)
+	req.args.Set("ig_sig_key_version", goInstaSigKeyVersion)
+	req.args.Set("rank_token", insta.Info.RankToken)
+
+	body, err := insta.sendRequest(req)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(body, user)
+}
+
+func (users *Users) followers() error {
+	user := users.user
+	userID := user.getID()
+	if userID == "" {
+		return ErrNoID
+	}
+	if user.Followers == nil {
+		user.Followers = NewUsers(insta)
+	}
+
+	maxID := user.Followers.MaxID
+	insta := user.insta
+	req := acquireRequest()
+	req.args = fasthttp.AcquireArgs()
+	defer releaseRequest(req)
+
+	req.SetEndpoint(fmt.Sprintf("friendships/%s/followers/", userID))
+	req.args.Set("max_id", maxID)
+	req.args.Set("ig_sig_key_version", goInstaSigKeyVersion)
+	req.args.Set("rank_token", insta.Info.RankToken)
+
+	body, err := insta.sendRequest(req)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(body, user.Followers)
+}
+
+// AllFollowing ...
+func (users *Users) All() error {
+	switch {
+	case users.followers:
+		err = users.followers()
+	default:
+		err = users.following()
+	}
+	return err
+}
+
+func (users *Users) allFollowing() (err error) {
+	userList := users.Users
+	for {
+		if err = users.following(); err != nil {
+			break
+		}
+
+		userList = append(userList, users.Users...)
+
+		if users.BigList {
+			break
+		}
+	}
+	return
+}
+
+func (users *Users) allFollowers() (err error) {
+	userList := users.Users
+	for {
+		if err = users.followers(); err != nil {
+			break
+		}
+
+		userList = append(userList, users.Users...)
+
+		if users.BigList {
+			break
+		}
+	}
+	return
 }
