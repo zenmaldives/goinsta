@@ -198,142 +198,173 @@ func (insta *Instagram) Logout() error {
 
 // SyncFeatures simulates Instagram app behavior
 func (insta *Instagram) SyncFeatures() error {
-	data, err := insta.prepareData(map[string]interface{}{
-		"id":          insta.Current.ID,
-		"experiments": GOINSTA_EXPERIMENTS,
-	})
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"id":          insta.Current.ID,
+			"experiments": GOINSTA_EXPERIMENTS,
+		},
+	)
 	if err != nil {
 		return err
 	}
 
-	_, err = insta.sendRequest(&reqOptions{
-		Endpoint: "qe/sync/",
-		PostData: generateSignature(data),
-	})
+	req := afquireRequest()
+	defer releaseRequest(req)
+
+	req.SetEndpoint("qe/sync/")
+	req.SetPostData(generateSignature(data))
+
+	_, err = insta.sendRequest(req)
 	return err
 }
 
 // AutoCompleteUserList simulates Instagram app behavior
 func (insta *Instagram) AutoCompleteUserList() error {
-	_, err := insta.sendRequest(&reqOptions{
-		Endpoint:     "friendships/autocomplete_user_list/",
-		IgnoreStatus: true,
-		Query: map[string]string{
-			"version": "2",
-		},
-	})
+	req := acquireRequest()
+	req.args = fasthttp.AcquireArgs()
+	defer releaseRequest(req)
+
+	req.SetEndpoint("friendships/autocomplete_user_list/")
+	req.skipStatus = true
+	req.args.Set("version", "2")
+	_, err := insta.sendRequest(req)
 	return err
 }
 
 // MegaphoneLog simulates Instagram app behavior
 func (insta *Instagram) MegaphoneLog() error {
-	data, err := insta.prepareData(map[string]interface{}{
-		"id":        insta.LoggedInUser.ID,
-		"type":      "feed_aysf",
-		"action":    "seen",
-		"reason":    "",
-		"device_id": insta.Informations.DeviceID,
-		"uuid":      generateMD5Hash(string(time.Now().Unix())),
-	})
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"id":        insta.LoggedInUser.ID,
+			"type":      "feed_aysf",
+			"action":    "seen",
+			"reason":    "",
+			"device_id": insta.Informations.DeviceID,
+			"uuid":      generateMD5Hash(string(time.Now().Unix())),
+		},
+	)
 	if err != nil {
 		return err
 	}
-	_, err = insta.sendRequest(&reqOptions{
-		Endpoint: "megaphone/log/",
-		PostData: generateSignature(data),
-	})
+
+	req := acquireRequest()
+	defer releaseRequest(req)
+
+	req.SetEndpoint("megaphone/log/")
+	req.SetPostData(generateSignature(data))
+
+	_, err = insta.sendRequest(req)
 	return err
 }
 
 // Expose , expose instagram
 // return error if status was not 'ok' or runtime error
 func (insta *Instagram) Expose() error {
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"id":         insta.LoggedInUser.ID,
+			"experiment": "ig_android_profile_contextual_feed",
+		},
+	)
+	if err != nil {
+		return err
+	}
+
 	result := StatusResponse{}
-	data, err := insta.prepareData(map[string]interface{}{
-		"id":         insta.LoggedInUser.ID,
-		"experiment": "ig_android_profile_contextual_feed",
-	})
+
+	req := acquireRequest()
+	defer releaseRequest(req)
+
+	req.SetEndpoint("qe/expose/")
+	req.SetPostData(generateSignature(data))
+
+	body, err := insta.sendRequest(req)
 	if err != nil {
 		return err
 	}
 
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: "qe/expose/",
-		PostData: generateSignature(data),
-	})
+	return json.Unmarshal(body, &result)
+}
+
+func (insta *Instagram) current() {
+	if insta.Current == nil {
+		insta.Current = &ProfileData{}
+		user := NewUser(insta)
+		// Initialising repo
+		user.Current.insta = user.insta
+		insta.Current.Feed = user.Feed
+		insta.Current.Following = user.Following
+		insta.Current.Followers = user.Followers
+	}
+}
+
+// SetPublicAccount sets account to public
+func (insta *Instagram) SetPublicAccount() error {
+	// filling with default values
+	insta.current()
+
+	data, err := insta.prepareData(make(map[string]interface{}))
+	if err != nil {
+		return result, err
+	}
+
+	req := acquireRequest()
+	defer releaseRequest(req)
+	req.SetEndpoint("accounts/set_public/")
+	req.SetPostData(generateSignature(data))
+
+	body, err := insta.sendRequest(req)
+	if err != nil {
+		return result, err
+	}
+
+	return json.Unmarshal(body, insta.Current)
+}
+
+// SetPrivateAccount sets account to private
+func (insta *Instagram) SetPrivateAccount() error {
+	insta.current()
+
+	data, err := insta.prepareData(make(map[string]interface{}))
 	if err != nil {
 		return err
 	}
 
-	err = json.Unmarshal(body, &result)
+	req := acquireRequest()
+	defer releaseRequest(req)
+	req.SetEndpoint("accounts/set_private/")
+	req.SetPostData(generateSignature(data))
 
-	return err
-}
-
-// SetPublicAccount Sets account to public
-func (insta *Instagram) SetPublicAccount() (ProfileDataResponse, error) {
-	result := ProfileDataResponse{}
-	data, err := insta.prepareData()
+	body, err := insta.sendRequest(req)
 	if err != nil {
-		return result, err
+		return err
 	}
 
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: "accounts/set_public/",
-		PostData: generateSignature(data),
-	})
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-
-	return result, err
-}
-
-// SetPrivateAccount Sets account to private
-func (insta *Instagram) SetPrivateAccount() (ProfileDataResponse, error) {
-	result := ProfileDataResponse{}
-	data, err := insta.prepareData()
-	if err != nil {
-		return result, err
-	}
-
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: "accounts/set_private/",
-		PostData: generateSignature(data),
-	})
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-
-	return result, err
+	return json.Unmarshal(body, insta.Current)
 }
 
 // GetProfileData return current user information
-func (insta *Instagram) GetProfileData() (ProfileDataResponse, error) {
-	result := ProfileDataResponse{}
-	data, err := insta.prepareData()
+func (insta *Instagram) GetProfileData() error {
+	insta.current()
+
+	data, err := insta.prepareData(make(map[string]interface{}))
 	if err != nil {
-		return result, err
+		return err
 	}
 
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: "accounts/current_user/",
-		PostData: generateSignature(data),
-		Query: map[string]string{
-			"edit": "true",
-		},
-	})
+	req := acquireRequest()
+	req.args = fasthttp.AcquireArgs()
+	defer releaseRequest(req)
+	req.SetEndpoint("accounts/current_user/")
+	req.SetPostData(generateSignature(data))
+	req.args.Set("edit", "true")
+
+	body, err := insta.sendRequest(req)
 	if err != nil {
-		return result, err
+		return err
 	}
 
-	err = json.Unmarshal(body, &result)
-
-	return result, err
+	return json.Unmarshal(body, insta.Current)
 }
 
 // RemoveProfilePicture will remove current logged in user profile picture
@@ -914,22 +945,6 @@ func getImageDimension(imagePath string) (int, int, error) {
 	defer file.Close()
 
 	return getImageDimensionFromReader(file)
-}
-
-func (insta *Instagram) SelfUserFollowers(maxID string) (UsersResponse, error) {
-	return insta.UserFollowers(insta.LoggedInUser.ID, maxID)
-}
-
-func (insta *Instagram) SelfUserFollowing(maxID string) (UsersResponse, error) {
-	return insta.UserFollowing(insta.LoggedInUser.ID, maxID)
-}
-
-func (insta *Instagram) SelfTotalUserFollowing() (UsersResponse, error) {
-	return insta.TotalUserFollowing(insta.LoggedInUser.ID)
-}
-
-func (insta *Instagram) SelfTotalUserFollowers() (UsersResponse, error) {
-	return insta.TotalUserFollowers(insta.LoggedInUser.ID)
 }
 
 func (insta *Instagram) TotalUserFollowing(userID int64) (UsersResponse, error) {
