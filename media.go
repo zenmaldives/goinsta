@@ -1,18 +1,34 @@
 package goinsta
 
+// Media is media object representation
+//
+// Do not use concurrently
 type Media struct {
-	// TODO: Implement
-	next  int64
 	insta *Instagram
 
+	ID       string
 	Comments MediaComments
-	Likes    MediaLikes
+	Likers   MediaLikers
 }
 
-// Media returns comments of a media, input is media ID.
-// You can use maxID for pagination, otherwise leave it empty to get the latest page only.
-func (com *Comments) Media(mediaID string, maxID string) (resp MediaComments, err error) {
-	insta := users.insta
+func NewMedia(insta *Instagram) {
+	return Media{insta: insta}
+}
+
+// Get gets all media data (Likes, Likers, Comments)
+func (media *Media) Get(mediaID string) error {
+	media.ID = mediaID
+
+	media.Comments()
+	media.Likers()
+	media.Likes()
+}
+
+// Comments collect all possible comments from media
+func (media *Media) Comments() error {
+	insta := media.insta
+	mediaID := media.ID
+
 	req := acquireRequest()
 	req.args = fasthttp.AcquireArgs()
 	defer releaseRequest(req)
@@ -22,21 +38,20 @@ func (com *Comments) Media(mediaID string, maxID string) (resp MediaComments, er
 
 	body, err := insta.sendRequest(req)
 	if err != nil {
-		return resp, err
+		return err
 	}
 
-	err = json.Unmarshal(body, &resp)
-	return resp, err
+	err = json.Unmarshal(body, &media.Comments)
+	return err
 }
 
 // MediaLikers return likers of a media , input is mediaid of a media
-func (insta *Instagram) MediaLikers(mediaID string) (MediaLikers, error) {
-	body, err := insta.sendSimpleRequest("media/%s/likers/?", mediaID)
+func (media *Media) Likers() error {
+	body, err := insta.sendSimpleRequest("media/%s/likers/", mediaID)
 	if err != nil {
-		return MediaLikersResponse{}, err
+		return err
 	}
-	resp := MediaLikersResponse{}
-	err = json.Unmarshal(body, &resp)
 
-	return resp, err
+	err = json.Unmarshal(body, &media.Likers)
+	return err
 }
