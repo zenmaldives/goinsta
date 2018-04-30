@@ -9,8 +9,12 @@ type UserFeed struct {
 	AutoLoadMoreEnabled bool   `json:"auto_load_more_enabled"`
 	Items               []Item `json:"items"`
 	MoreAvailable       bool   `json:"more_available"`
+	TotalCount          int    `json:"total_count"`
+	RequiresView        bool   `json:"requires_review"`
 	NextMaxID           string `json:"next_max_id"`
 	MinTimestamp        string `json:"-"`
+	// TODO maybe this is photos waiting for review?
+	// NewPhotos           []interface{} `json:"new_photos"`
 }
 
 // NewFeed returns feed for the given user
@@ -55,9 +59,9 @@ func (feed *Feed) Get() (err error) {
 	defer releaseRequest(req)
 
 	req.SetEndpoint(fmt.Sprintf("feed/user/%s/", userID))
-	req.args.Set("max_id", user.Feed.NextMaxID)
+	req.args.Set("max_id", feed.NextMaxID)
 	req.args.Set("rank_token", insta.Info.RankToken)
-	req.args.Set("min_timestamp", user.Feed.MinTimestamp)
+	req.args.Set("min_timestamp", feed.MinTimestamp)
 	req.args.Set("ranked_content", "true")
 
 	body, err := insta.sendRequest(req)
@@ -65,9 +69,9 @@ func (feed *Feed) Get() (err error) {
 		return err
 	}
 
-	err = json.Unmarshal(body, &user.Feed)
+	err = json.Unmarshal(body, feed)
 	if err == nil {
-		user.Feed.IDStr = strconv.FormatInt(user.Feed.ID, 10)
+		feed.IDStr = strconv.FormatInt(feed.ID, 10)
 	}
 	return
 }
@@ -76,4 +80,31 @@ func (feed *Feed) Get() (err error) {
 func (feed *Feed) Latest() error {
 	feed.Reset()
 	return feed.Get()
+}
+
+// TaggedFeed returns the feed for medua a given user is tagged in
+func (feed *Feed) Tagged() error {
+	userID := user.getID()
+	if userID == "" {
+		return ErrNoID
+	}
+
+	insta := feed.user.insta
+	req := acquireRequest()
+	req.args = fasthttp.AcquireArgs()
+	defer releaseRequest(req)
+
+	req.SetEndpoint(fmt.Sprintf("feed/user/%s/", userID))
+	req.args.Set("max_id", feed.NextMaxID)
+	req.args.Set("rank_token", insta.Info.RankToken)
+	req.args.Set("min_timestamp", feed.MinTimestamp)
+	req.args.Set("ranked_content", "true")
+
+	body, err := insta.sendRequest(req)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(body, feed)
+	return err
 }
