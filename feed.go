@@ -41,13 +41,13 @@ func (uf *UserFeed) Reset() {
 	uf.MinTimestamp = ""
 }
 
-// UserFeed returns the Instagram feed for the given user id.
+// Get sets the Instagram feed for the given user id.
 //
 // NextMaxID and MinTimestamp can be used for pagination.
 // Pagination occurs automatically call by call.
 //
 // ID or IDStr can be used to interfact with specified user.
-func (feed *Feed) Get() (err error) {
+func (feed *UserFeed) Get() (err error) {
 	userID := user.getID()
 	if userID == "" {
 		return ErrNoID
@@ -77,13 +77,13 @@ func (feed *Feed) Get() (err error) {
 }
 
 // Latest gets the latest page of users feed.
-func (feed *Feed) Latest() error {
+func (feed *UserFeed) Latest() error {
 	feed.Reset()
 	return feed.Get()
 }
 
-// TaggedFeed returns the feed for medua a given user is tagged in
-func (feed *Feed) Tagged() error {
+// Tagged sets tagged media in feed structure
+func (feed *UserFeed) Tagged() error {
 	userID := user.getID()
 	if userID == "" {
 		return ErrNoID
