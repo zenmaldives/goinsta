@@ -1,5 +1,12 @@
 package goinsta
 
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/erikdubbelboer/fasthttp"
+)
+
 // MediaInfo contains media information
 type MediaInfo struct {
 	media *Media
@@ -47,9 +54,9 @@ type Media struct {
 // NewMedia returns new media
 func NewMedia(insta *Instagram) *Media {
 	media := &Media{insta: insta}
-	media.Info = MediaInfo{media: media}
-	media.Comments = MediaComments{media: media}
-	media.Likers = MediaLikers{media: media}
+	media.Info = &MediaInfo{media: media}
+	media.Comments = &MediaComments{media: media}
+	media.Likers = &MediaLikers{media: media}
 	return media
 }
 
@@ -62,7 +69,7 @@ func (media *Media) Get(id string) {
 	}
 	media.Comments.Get()
 	media.Likers.Get()
-	media.Likes.Get()
+	media.Info.Get()
 }
 
 // GetAsync does the same as Get but using goroutines
@@ -72,7 +79,7 @@ func (media *Media) GetAsync(id string) {
 	}
 	go media.Comments.Get()
 	go media.Likers.Get()
-	go media.Likes.Get()
+	go media.Info.Get()
 }
 
 // Get collect comments.
@@ -82,6 +89,7 @@ func (comments *MediaComments) Get() error {
 	media := comments.media
 	insta := media.insta
 	mediaID := media.ID
+	maxID := comments.NextMaxID
 
 	req := acquireRequest()
 	req.args = fasthttp.AcquireArgs()
@@ -103,7 +111,7 @@ func (comments *MediaComments) Get() error {
 //
 // This structure cannot be paginated.
 func (likers *MediaLikers) Get() error {
-	body, err := insta.sendSimpleRequest("media/%s/likers/", likers.media.ID)
+	body, err := likers.media.insta.sendSimpleRequest("media/%s/likers/", likers.media.ID)
 	if err != nil {
 		return err
 	}
@@ -115,7 +123,6 @@ func (likers *MediaLikers) Get() error {
 func (info *MediaInfo) Get() error {
 	media := info.media
 	insta := media.insta
-	result := MediaInfoResponse{}
 	mediaID := media.ID
 
 	req := acquireRequest()

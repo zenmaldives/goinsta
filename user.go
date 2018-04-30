@@ -1,5 +1,10 @@
 package goinsta
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // User is instagram user informations
 type User struct {
 	insta *Instagram
@@ -51,13 +56,13 @@ func NewUser(insta *Instagram) *User {
 	}
 	user.Feed = NewFeed(user)
 	user.Following = NewUsers(user, false)
-	user.Followers = NewUser(user, true)
+	user.Followers = NewUsers(user, true)
 	return user
 }
 
 // Get gets user information using User.ID.
 func (user *User) Get() error {
-	data, err := insta.prepareData(make(map[string]interface{}))
+	data, err := user.insta.prepareData(make(map[string]interface{}))
 	if err != nil {
 		return err
 	}
@@ -67,7 +72,7 @@ func (user *User) Get() error {
 	req.SetEndpoint(fmt.Sprintf("users/%s/info/", user.ID))
 	req.SetData(generateSignature(data))
 
-	body, err := insta.sendRequest(req)
+	body, err := user.insta.sendRequest(req)
 	if err == nil {
 		err = json.Unmarshal(body, user)
 	}
@@ -75,8 +80,8 @@ func (user *User) Get() error {
 	return err
 }
 
-func (user *User) GetByUser() {
-	body, err := insta.sendSimpleRequest(
+func (user *User) GetByUser() error {
+	body, err := user.insta.sendSimpleRequest(
 		fmt.Sprintf("users/%s/usernameinfo/", user.Username),
 	)
 	if err == nil {

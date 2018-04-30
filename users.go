@@ -1,8 +1,16 @@
 package goinsta
 
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/erikdubbelboer/fasthttp"
+)
+
 // Users represents instagram list of users
 type Users struct {
-	user *User
+	user  *User
+	insta *Instagram
 
 	// followers
 	f bool
@@ -20,7 +28,8 @@ type Users struct {
 // In other case it will be load following.
 func NewUsers(user *User, followers bool) *Users {
 	users := &Users{
-		insta: insta,
+		user:  user,
+		insta: user.insta,
 		f:     followers,
 	}
 	return users
@@ -30,6 +39,7 @@ func NewUsers(user *User, followers bool) *Users {
 // To keep last data use AddNext.
 func (users *Users) Next() bool {
 	// TODO
+	return false
 }
 
 // Get gets following or follower values into Users structure
@@ -54,11 +64,8 @@ func (users *Users) following() error {
 	if userID == "" {
 		return ErrNoID
 	}
-	if user.Following == nil {
-		user.Following = NewUsers(insta)
-	}
 
-	maxID := user.Following.MaxID
+	maxID := users.NextMaxID
 	insta := user.insta
 	req := acquireRequest()
 	req.args = fasthttp.AcquireArgs()
@@ -74,7 +81,7 @@ func (users *Users) following() error {
 		return err
 	}
 
-	return json.Unmarshal(body, user)
+	return json.Unmarshal(body, users)
 }
 
 func (users *Users) followers() error {
@@ -83,11 +90,8 @@ func (users *Users) followers() error {
 	if userID == "" {
 		return ErrNoID
 	}
-	if user.Followers == nil {
-		user.Followers = NewUsers(insta)
-	}
 
-	maxID := user.Followers.MaxID
+	maxID := users.NextMaxID
 	insta := user.insta
 	req := acquireRequest()
 	req.args = fasthttp.AcquireArgs()
@@ -103,13 +107,13 @@ func (users *Users) followers() error {
 		return err
 	}
 
-	return json.Unmarshal(body, user.Followers)
+	return json.Unmarshal(body, users)
 }
 
 // AllFollowing ...
-func (users *Users) All() error {
+func (users *Users) All() (err error) {
 	switch {
-	case users.followers:
+	case users.f:
 		err = users.followers()
 	default:
 		err = users.following()
