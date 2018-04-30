@@ -61,7 +61,7 @@ type Instagram struct {
 	Info   *ClientInfo
 
 	// Current is current user (logged user)
-	Current *User
+	Current *ProfileData
 
 	// DialFunc allows user to use proxy function.
 	// See also: https://godoc.org/github.com/erikdubbelboer/fasthttp#Client.Dial
