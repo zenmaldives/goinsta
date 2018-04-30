@@ -27,11 +27,11 @@ func (insta *Instagram) GetSessions() map[string]*fasthttp.Cookie {
 }
 
 // SetCookies can enable us to set cookie, it'll be help for webpage that use this API without Login-again.
-func (insta *Instagram) SetCookies(cookies []*fasthttp.Cookie) {
+func (insta *Instagram) SetCookies(cks []*fasthttp.Cookie) {
 	if insta.cookies == nil {
-		insta.cookies = fasthttp.AcquireCookie()
+		insta.cookies = &cookies{}
 	}
-	insta.cookies.SetCookies(cookies)
+	insta.cookies.SetCookies(cks)
 }
 
 // Const values ,
