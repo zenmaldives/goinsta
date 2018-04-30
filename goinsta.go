@@ -117,9 +117,8 @@ func New(username, password string) *Instagram {
 			UUID:     generateUUID(true),
 			PhoneID:  generateUUID(true),
 		},
-		Users: &Users{},
 	}
-	insta.Users.insta = insta
+	insta.Current = NewUser(insta)
 	return insta
 }
 
@@ -269,29 +268,6 @@ func (insta *Instagram) Expose() error {
 	err = json.Unmarshal(body, &result)
 
 	return err
-}
-
-// MediaInfo return media information
-func (insta *Instagram) MediaInfo(mediaID string) (MediaInfoResponse, error) {
-	result := MediaInfoResponse{}
-	data, err := insta.prepareData(map[string]interface{}{
-		"media_id": mediaID,
-	})
-	if err != nil {
-		return result, err
-	}
-
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("media/%s/info/", mediaID),
-		PostData: generateSignature(data),
-	})
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-
-	return result, err
 }
 
 // SetPublicAccount Sets account to public
@@ -1187,19 +1163,10 @@ func (insta *Instagram) GetPopularFeed() (GetPopularFeedResponse, error) {
 	return result, err
 }
 
-func (insta *Instagram) prepareData(otherData ...map[string]interface{}) (string, error) {
-	data := map[string]interface{}{
-		"_uuid":      insta.Informations.UUID,
-		"_uid":       insta.LoggedInUser.ID,
-		"_csrftoken": insta.Informations.Token,
-	}
-	if len(otherData) > 0 {
-		for i := range otherData {
-			for key, value := range otherData[i] {
-				data[key] = value
-			}
-		}
-	}
+func (insta *Instagram) prepareData(data map[string]interface{}) (string, error) {
+	data["_uuid"] = insta.Info.UUID
+	data["_uid"] = insta.CurrentUser.ID
+	data["_csrftoken"] = insta.Info.Token
 	bytes, err := json.Marshal(data)
-	return string(bytes), err
+	return b2s(bytes), err
 }

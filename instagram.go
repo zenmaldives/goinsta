@@ -71,6 +71,6 @@ type Instagram struct {
 	cookies *cookies
 
 	// Instagram objects
-	Users    *Users
-	Comments *Comments
+	User  *User
+	Media *Media
 }
