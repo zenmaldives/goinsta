@@ -1,114 +1,141 @@
 package goinsta
 
 import (
-	"bytes"
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"net/url"
-	"strings"
+	"sync"
+
+	"github.com/erikdubbelboer/fasthttp"
+	"github.com/valyala/bytebufferpool"
 )
 
 type reqOptions struct {
-	Endpoint     string
-	PostData     string
-	IsLoggedIn   bool
-	IgnoreStatus bool
-	Query        map[string]string
+	endpoint []byte
+
+	// post data
+	postData []byte
+
+	skipStatus bool
+	args       *fasthttp.Args
 }
 
+func (req *reqOptions) SetEndpointBytes(b []byte) {
+	req.endpoint = append(req.endpoint[:0], b...)
+}
+
+func (req *reqOptions) SetEndpoint(b string) {
+	req.endpoint = append(req.endpoint[:0], b...)
+}
+
+func (req *reqOptions) SetDataBytes(b []byte) {
+	req.postData = append(req.postData[:0], b...)
+}
+
+func (req *reqOptions) SetData(b string) {
+	req.postData = append(req.postData[:0], b...)
+}
+
+var reqPool = sync.Pool{
+	New: func() interface{} {
+		return &reqOptions{}
+	},
+}
+
+func acquireRequest() *reqOptions {
+	return reqPool.Get().(*reqOptions)
+}
+
+func releaseRequest(r *reqOptions) {
+	r.Reset()
+	reqPool.Put(r)
+}
+
+func (req *reqOptions) Reset() {
+	req.endpoint = req.endpoint[:0]
+	req.postData = req.postData[:0]
+	if req.args != nil {
+		fasthttp.ReleaseArgs(req.args)
+		req.args = nil
+	}
+	req.skipStatus = false
+}
+
+// TODO: Does the same as sendSimpleRequest
 func (insta *Instagram) OptionalRequest(endpoint string, a ...interface{}) (body []byte, err error) {
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf(endpoint, a...),
-	})
+	req := acquireRequest()
+	defer releaseRequest(req)
+	req.SetEndpoint(fmt.Sprintf(endpoint, a...))
+	return insta.sendRequest(req)
 }
 
 func (insta *Instagram) sendSimpleRequest(endpoint string, a ...interface{}) (body []byte, err error) {
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf(endpoint, a...),
-	})
+	req := acquireRequest()
+	defer releaseRequest(req)
+	req.SetEndpoint(fmt.Sprintf(endpoint, a...))
+	return insta.sendRequest(req)
 }
 
 func (insta *Instagram) sendRequest(o *reqOptions) (body []byte, err error) {
+	url := bytebufferpool.Get()
+	url.WriteString(goInstaAPIUrl)
+	defer bytebufferpool.Put(url)
 
-	if !insta.IsLoggedIn && !o.IsLoggedIn {
-		return nil, fmt.Errorf("not logged in")
-	}
+	req, res := fasthttp.AcquireRequest(), fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(res)
 
-	method := "GET"
-	if len(o.PostData) > 0 {
-		method = "POST"
+	// Setting cookies
+	if insta.cookies != nil {
+		for _, c := range insta.cookies.Cookies() {
+			req.Header.SetCookieBytesKV(c.Key(), c.Value())
+		}
 	}
+	url.Write(o.endpoint)
 
-	u, err := url.Parse(GOINSTA_API_URL + o.Endpoint)
-	if err != nil {
-		return nil, err
+	if len(o.postData) != 0 {
+		req.Header.SetMethod("POST")
+		req.SetBody(o.postData)
+	} else {
+		url.WriteByte('?')
+		if o.args != nil {
+			url.Write(o.args.QueryString())
+		}
 	}
-
-	q := u.Query()
-	for k, v := range o.Query {
-		q.Add(k, v)
-	}
-	u.RawQuery = q.Encode()
-
-	var req *http.Request
-	req, err = http.NewRequest(method, u.String(), bytes.NewBuffer([]byte(o.PostData)))
-	if err != nil {
-		return
-	}
+	req.SetRequestURIBytes(url.B)
 
 	req.Header.Set("Connection", "close")
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Content-type", "application/x-www-form-urlencoded; charset=UTF-8")
 	req.Header.Set("Cookie2", "$Version=1")
 	req.Header.Set("Accept-Language", "en-US")
-	req.Header.Set("User-Agent", GOINSTA_USER_AGENT)
 
-	client := &http.Client{
-		Jar: insta.Cookiejar,
-	}
-
-	if insta.Proxy != "" {
-		proxy, err := url.Parse(insta.Proxy)
-		if err != nil {
-			return body, err
-		}
-		insta.Transport.Proxy = http.ProxyURL(proxy)
-
-		client.Transport = &insta.Transport
-	} else {
-		// Remove proxy if insta.Proxy was removed
-		insta.Transport.Proxy = nil
-		client.Transport = &insta.Transport
-	}
-
-	resp, err := client.Do(req)
+	err = insta.client.Do(req, res)
 	if err != nil {
-		return body, err
+		return nil, err
 	}
-	defer resp.Body.Close()
 
-	u, _ = url.Parse(GOINSTA_API_URL)
-	for _, value := range insta.Cookiejar.Cookies(u) {
-		if strings.Contains(value.Name, "csrftoken") {
-			insta.Informations.Token = value.Value
+	// if cookie changed or should be setted
+	cookie := res.Header.Peek("Set-Cookie")
+	if cookie != nil {
+		if insta.cookies == nil {
+			insta.cookies = &cookies{}
+		}
+		res.Header.VisitAllCookie(func(key, value []byte) {
+			insta.cookies.Set(key, value)
+		})
+		v := insta.cookies.Peek("csrftoken")
+		if len(v) != 0 {
+			insta.Info.Token = v
 		}
 	}
 
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-
-	if resp.StatusCode != 200 && !o.IgnoreStatus {
-		e := fmt.Errorf("Invalid status code %s", string(body))
-		switch resp.StatusCode {
+	body = res.Body()
+	if res.StatusCode() != 200 && !o.skipStatus {
+		switch res.StatusCode() {
 		case 400:
-			e = ErrLoggedOut
+			err = ErrLoggedOut
 		case 404:
-			e = ErrNotFound
+			err = ErrNotFound
 		}
-		return nil, e
 	}
 
 	return body, err
