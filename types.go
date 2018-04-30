@@ -294,18 +294,6 @@ type CommentResponse struct {
 	Type         int    `json:"type"`
 }
 
-// ProfileDataResponse have StatusResponse and ProfileUserResponse
-type ProfileDataResponse struct {
-	StatusResponse
-	User ProfileUserResponse `json:"user"`
-}
-
-// GetUserID return userinformation
-type GetUserID struct {
-	StatusResponse
-	User UsernameResponse `json:"user"`
-}
-
 // UsernameResponse information of each instagram users
 type UsernameResponse struct {
 	User

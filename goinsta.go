@@ -118,7 +118,7 @@ func New(username, password string) *Instagram {
 			PhoneID:  generateUUID(true),
 		},
 	}
-	insta.Current = NewUser(insta)
+	insta.current()
 	return insta
 }
 
@@ -155,8 +155,8 @@ func (insta *Instagram) Login() error {
 	}
 
 	var Result struct {
-		LoggedInUser User   `json:"logged_in_user"`
-		Status       string `json:"status"`
+		Current User   `json:"logged_in_user"`
+		Status  string `json:"status"`
 	}
 
 	err = json.Unmarshal(body, &Result)
@@ -164,9 +164,9 @@ func (insta *Instagram) Login() error {
 		return err
 	}
 
-	insta.Current = &Result.LoggedInUser
+	//insta.Current = &Result.Current
 	insta.Logged = true
-	insta.Info.RankToken = strconv.FormatInt(Result.LoggedInUser.ID, 10) + "_" + insta.Info.UUID
+	insta.Info.RankToken = strconv.FormatInt(Result.Current.ID, 10) + "_" + insta.Info.UUID
 
 	insta.SyncFeatures()
 	insta.AutoCompleteUserList()
@@ -208,11 +208,11 @@ func (insta *Instagram) SyncFeatures() error {
 		return err
 	}
 
-	req := afquireRequest()
+	req := acquireRequest()
 	defer releaseRequest(req)
 
 	req.SetEndpoint("qe/sync/")
-	req.SetPostData(generateSignature(data))
+	req.SetData(generateSignature(data))
 
 	_, err = insta.sendRequest(req)
 	return err
@@ -235,11 +235,11 @@ func (insta *Instagram) AutoCompleteUserList() error {
 func (insta *Instagram) MegaphoneLog() error {
 	data, err := insta.prepareData(
 		map[string]interface{}{
-			"id":        insta.LoggedInUser.ID,
+			"id":        insta.Current.ID,
 			"type":      "feed_aysf",
 			"action":    "seen",
 			"reason":    "",
-			"device_id": insta.Informations.DeviceID,
+			"device_id": insta.Info.DeviceID,
 			"uuid":      generateMD5Hash(string(time.Now().Unix())),
 		},
 	)
@@ -251,7 +251,7 @@ func (insta *Instagram) MegaphoneLog() error {
 	defer releaseRequest(req)
 
 	req.SetEndpoint("megaphone/log/")
-	req.SetPostData(generateSignature(data))
+	req.SetData(generateSignature(data))
 
 	_, err = insta.sendRequest(req)
 	return err
@@ -262,7 +262,7 @@ func (insta *Instagram) MegaphoneLog() error {
 func (insta *Instagram) Expose() error {
 	data, err := insta.prepareData(
 		map[string]interface{}{
-			"id":         insta.LoggedInUser.ID,
+			"id":         insta.Current.ID,
 			"experiment": "ig_android_profile_contextual_feed",
 		},
 	)
@@ -276,7 +276,7 @@ func (insta *Instagram) Expose() error {
 	defer releaseRequest(req)
 
 	req.SetEndpoint("qe/expose/")
-	req.SetPostData(generateSignature(data))
+	req.SetData(generateSignature(data))
 
 	body, err := insta.sendRequest(req)
 	if err != nil {
@@ -291,7 +291,7 @@ func (insta *Instagram) current() {
 		insta.Current = &ProfileData{}
 		user := NewUser(insta)
 		// Initialising repo
-		user.Current.insta = user.insta
+		insta.Current.insta = user.insta
 		insta.Current.Feed = user.Feed
 		insta.Current.Following = user.Following
 		insta.Current.Followers = user.Followers
@@ -305,17 +305,17 @@ func (insta *Instagram) SetPublicAccount() error {
 
 	data, err := insta.prepareData(make(map[string]interface{}))
 	if err != nil {
-		return result, err
+		return err
 	}
 
 	req := acquireRequest()
 	defer releaseRequest(req)
 	req.SetEndpoint("accounts/set_public/")
-	req.SetPostData(generateSignature(data))
+	req.SetData(generateSignature(data))
 
 	body, err := insta.sendRequest(req)
 	if err != nil {
-		return result, err
+		return err
 	}
 
 	return json.Unmarshal(body, insta.Current)
@@ -333,7 +333,7 @@ func (insta *Instagram) SetPrivateAccount() error {
 	req := acquireRequest()
 	defer releaseRequest(req)
 	req.SetEndpoint("accounts/set_private/")
-	req.SetPostData(generateSignature(data))
+	req.SetData(generateSignature(data))
 
 	body, err := insta.sendRequest(req)
 	if err != nil {
@@ -356,7 +356,7 @@ func (insta *Instagram) GetProfileData() error {
 	req.args = fasthttp.AcquireArgs()
 	defer releaseRequest(req)
 	req.SetEndpoint("accounts/current_user/")
-	req.SetPostData(generateSignature(data))
+	req.SetData(generateSignature(data))
 	req.args.Set("edit", "true")
 
 	body, err := insta.sendRequest(req)

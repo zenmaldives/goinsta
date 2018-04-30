@@ -65,7 +65,7 @@ func (user *User) Get() error {
 	req := acquireRequest()
 	defer releaseRequest(req)
 	req.SetEndpoint(fmt.Sprintf("users/%s/info/", user.ID))
-	req.SetPostData(generateSignature(data))
+	req.SetData(generateSignature(data))
 
 	body, err := insta.sendRequest(req)
 	if err == nil {
