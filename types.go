@@ -15,15 +15,6 @@ type StringPagination struct {
 	NextMaxID string `json:"next_max_id"`
 }
 
-// UsersResponse
-type UsersResponse struct {
-	StatusResponse
-	BigList  bool   `json:"big_list"`
-	Users    []User `json:"users"`
-	PageSize int    `json:"page_size"`
-	StringPagination
-}
-
 // FeedsResponse struct contains array of media and can pagination
 type FeedsResponse struct {
 	StatusResponse
@@ -562,29 +553,6 @@ type DirectThread struct {
 		} `json:"inviter"`
 		Pending bool `json:"pending"`
 	} `json:"thread"`
-}
-
-type UserTaggedFeedResponse struct {
-	Status              string `json:"status"`
-	NumResults          int    `json:"num_results"`
-	AutoLoadMoreEnabled bool   `json:"auto_load_more_enabled"`
-	Items               []Item `json:"items"`
-	MoreAvailable       bool   `json:"more_available"`
-	NextMaxID           int64  `json:"next_max_id"`
-	TotalCount          int    `json:"total_count"`
-	RequiresReview      bool   `json:"requires_review"`
-	// maybe this is photos waiting for review?
-	// NewPhotos           []interface{} `json:"new_photos"`
-}
-
-// UserFeedResponse contains user feeds
-type UserFeedResponse struct {
-	Status              string `json:"status"`
-	NumResults          int    `json:"num_results"`
-	AutoLoadMoreEnabled bool   `json:"auto_load_more_enabled"`
-	Items               []Item `json:"items"`
-	MoreAvailable       bool   `json:"more_available"`
-	NextMaxID           string `json:"next_max_id"`
 }
 
 // Item user feeds item
@@ -1174,8 +1142,8 @@ type ExploreItem struct {
 	} `json:"stories"`
 }
 
-// MediaInfoResponse contains media information
-type MediaInfoResponse struct {
+// MediaInfo contains media information
+type MediaInfo struct {
 	Status              string `json:"status"`
 	NumResults          int    `json:"num_results"`
 	AutoLoadMoreEnabled bool   `json:"auto_load_more_enabled"`
