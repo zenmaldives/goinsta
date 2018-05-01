@@ -160,11 +160,11 @@ func (user *User) Follow() error {
 	return json.Unmarshal(body, user)
 }
 
-// UnFollow unfollows specified user
+// Unfollow unfollows specified user
 //
 // If this function does not return any error User.FriendShip will be replaced
 // with the new relationship with this user.
-func (user *User) UnFollow() error {
+func (user *User) Unfollow() error {
 	userID := user.getID()
 	if userID == "" {
 		return ErrNoID
@@ -221,8 +221,8 @@ func (insta *Instagram) Block() error {
 	return err
 }
 
-// UnBlock unblocks instagram user
-func (insta *Instagram) UnBlock() error {
+// Unblock unblocks instagram user
+func (insta *Instagram) Unblock() error {
 	userID := user.getID()
 	if userID == "" {
 		return ErrNoID
