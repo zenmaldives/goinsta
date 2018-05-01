@@ -2,15 +2,11 @@
 package goinsta
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
-	"io"
-	"io/ioutil"
-	"mime/multipart"
 	"os"
 	"strconv"
 	"time"
@@ -118,7 +114,7 @@ func New(username, password string) *Instagram {
 			PhoneID:  generateUUID(true),
 		},
 	}
-	insta.current()
+	insta.fill()
 	return insta
 }
 
@@ -154,12 +150,7 @@ func (insta *Instagram) Login() error {
 		return err
 	}
 
-	var Result struct {
-		Current User   `json:"logged_in_user"`
-		Status  string `json:"status"`
-	}
-
-	err = json.Unmarshal(body, &Result)
+	err = json.Unmarshal(body, insta)
 	if err != nil {
 		return err
 	}
@@ -286,22 +277,46 @@ func (insta *Instagram) Expose() error {
 	return json.Unmarshal(body, &result)
 }
 
-func (insta *Instagram) current() {
+// TODO
+func (insta *Instagram) fill() {
+	if insta.User == nil {
+		insta.User = NewUser(insta)
+	}
+	user := insta.User
 	if insta.Current == nil {
 		insta.Current = &ProfileData{}
-		user := NewUser(insta)
-		// Initialising repo
-		insta.Current.insta = user.insta
-		insta.Current.Feed = user.Feed
-		insta.Current.Following = user.Following
-		insta.Current.Followers = user.Followers
+	}
+
+	if insta.Tag == nil {
+		insta.Tag = NewTag(insta)
+	}
+	if insta.Current.Feed == nil {
+		insta.Current.Feed = NewFeed(user)
+	}
+	if insta.Inbox == nil {
+		insta.Inbox = NewInbox(insta)
+	}
+	if insta.Current.Following == nil {
+		insta.Current.Following = NewUsers(user, false)
+	}
+	if insta.Current.Followers == nil {
+		insta.Current.Followers = NewUsers(user, true)
+	}
+
+	if insta.Current.insta == nil {
+		insta.Current.insta = insta
+	}
+	if insta.Media == nil {
+		insta.Media = NewMedia(insta)
+	}
+	if insta.Search == nil {
+		insta.Search = NewSearch(insta)
 	}
 }
 
 // SetPublicAccount sets account to public
 func (insta *Instagram) SetPublicAccount() error {
-	// filling with default values
-	insta.current()
+	defer insta.fill()
 
 	data, err := insta.prepareData(make(map[string]interface{}))
 	if err != nil {
@@ -318,12 +333,12 @@ func (insta *Instagram) SetPublicAccount() error {
 		return err
 	}
 
-	return json.Unmarshal(body, insta.Current)
+	return json.Unmarshal(body, insta)
 }
 
 // SetPrivateAccount sets account to private
 func (insta *Instagram) SetPrivateAccount() error {
-	insta.current()
+	defer insta.fill()
 
 	data, err := insta.prepareData(make(map[string]interface{}))
 	if err != nil {
@@ -340,12 +355,12 @@ func (insta *Instagram) SetPrivateAccount() error {
 		return err
 	}
 
-	return json.Unmarshal(body, insta.Current)
+	return json.Unmarshal(body, insta)
 }
 
 // GetProfileData return current user information
 func (insta *Instagram) GetProfileData() error {
-	insta.current()
+	defer insta.fill()
 
 	data, err := insta.prepareData(make(map[string]interface{}))
 	if err != nil {
@@ -364,533 +379,27 @@ func (insta *Instagram) GetProfileData() error {
 		return err
 	}
 
-	return json.Unmarshal(body, insta.Current)
+	return json.Unmarshal(body, insta)
 }
 
 // RemoveProfilePicture will remove current logged in user profile picture
-func (insta *Instagram) RemoveProfilePicture() (ProfileDataResponse, error) {
-	result := ProfileDataResponse{}
-	data, err := insta.prepareData()
+func (insta *Instagram) RemoveProfilePicture() error {
+	data, err := insta.prepareData(make(map[string]interface{}))
 	if err != nil {
-		return result, err
+		return err
 	}
 
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: "accounts/remove_profile_picture/",
-		PostData: generateSignature(data),
-	})
+	req := acquireRequest()
+	defer releaseRequest(req)
+	req.SetEndpoint("accounts/remove_profile_picture/")
+	req.SetData(generateSignature(data))
+
+	body, err := insta.sendRequest(req)
 	if err != nil {
-		return result, err
+		return err
 	}
 
-	err = json.Unmarshal(body, &result)
-
-	return result, err
-}
-
-// SearchLocation return search location by lat & lng & search query in instagram
-func (insta *Instagram) SearchLocation(lat, lng, search string) (SearchLocationResponse, error) {
-	if lat == "" || lng == "" {
-		return SearchLocationResponse{}, fmt.Errorf("lat & lng must not be empty")
-	}
-
-	query := map[string]string{
-		"rank_token":     insta.Informations.RankToken,
-		"latitude":       lat,
-		"longitude":      lng,
-		"ranked_content": "true",
-	}
-
-	if search != "" {
-		query["search_query"] = search
-	} else {
-		query["timestamp"] = strconv.FormatInt(time.Now().Unix(), 10)
-	}
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: "location_search/",
-		Query:    query,
-	})
-
-	if err != nil {
-		return SearchLocationResponse{}, err
-	}
-
-	resp := SearchLocationResponse{}
-	err = json.Unmarshal(body, &resp)
-	return resp, err
-}
-
-// GetLocationFeed return location feed data by locationID in Instagram
-func (insta *Instagram) GetLocationFeed(locationID int64, maxID string) (LocationFeedResponse, error) {
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("feed/location/%d/", locationID),
-		Query: map[string]string{
-			"max_id": maxID,
-		},
-	})
-	if err != nil {
-		return LocationFeedResponse{}, err
-	}
-
-	resp := LocationFeedResponse{}
-	err = json.Unmarshal(body, &resp)
-	return resp, err
-}
-
-// GetTagRelated can get related tags by tags in instagram
-func (insta *Instagram) GetTagRelated(tag string) (TagRelatedResponse, error) {
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("tags/%s/related", tag),
-		Query: map[string]string{
-			"visited":       fmt.Sprintf(`[{"id":"%s","type":"hashtag"}]`, tag),
-			"related_types": `["hashtag"]`,
-		},
-	})
-
-	if err != nil {
-		return TagRelatedResponse{}, err
-	}
-	resp := TagRelatedResponse{}
-	err = json.Unmarshal(body, &resp)
-	return resp, err
-}
-
-// TagFeed search by tags in instagram
-func (insta *Instagram) TagFeed(tag string) (TagFeedsResponse, error) {
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("feed/tag/%s/", tag),
-		Query: map[string]string{
-			"rank_token":     insta.Informations.RankToken,
-			"ranked_content": "true",
-		},
-	})
-	if err != nil {
-		return TagFeedsResponse{}, err
-	}
-
-	resp := TagFeedsResponse{}
-	err = json.Unmarshal(body, &resp)
-
-	return resp, err
-}
-
-// UploadPhotoFromReader can upload your photo stored in io.Reader with any quality , better to use 87
-func (insta *Instagram) UploadPhotoFromReader(photo io.Reader, photo_caption string, upload_id int64, quality int, filter_type int) (UploadPhotoResponse, error) {
-	photo_name := fmt.Sprintf("pending_media_%d.jpg", upload_id)
-
-	//multipart request body
-	var b bytes.Buffer
-	w := multipart.NewWriter(&b)
-
-	w.WriteField("upload_id", strconv.FormatInt(upload_id, 10))
-	w.WriteField("_uuid", insta.Informations.UUID)
-	w.WriteField("_csrftoken", insta.Informations.Token)
-	w.WriteField("image_compression", `{"lib_name":"jt","lib_version":"1.3.0","quality":"`+strconv.Itoa(quality)+`"}`)
-
-	fw, err := w.CreateFormFile("photo", photo_name)
-	if err != nil {
-		return UploadPhotoResponse{}, err
-	}
-
-	var buf bytes.Buffer
-
-	rdr := io.TeeReader(photo, &buf)
-
-	if _, err = io.Copy(fw, rdr); err != nil {
-		return UploadPhotoResponse{}, err
-	}
-	if err := w.Close(); err != nil {
-		return UploadPhotoResponse{}, err
-	}
-
-	//making post request
-	req, err := http.NewRequest("POST", GOINSTA_API_URL+"upload/photo/", &b)
-	if err != nil {
-		return UploadPhotoResponse{}, err
-	}
-	req.Header.Set("X-IG-Capabilities", "3Q4=")
-	req.Header.Set("X-IG-Connection-Type", "WIFI") // cool header :smile:
-	req.Header.Set("Cookie2", "$Version=1")
-	req.Header.Set("Accept-Language", "en-US")
-	req.Header.Set("Accept-Encoding", "gzip, deflate")
-	req.Header.Set("Content-type", w.FormDataContentType())
-	req.Header.Set("Connection", "close")
-	req.Header.Set("User-Agent", GOINSTA_USER_AGENT)
-
-	client := &http.Client{
-		Jar: insta.Cookiejar,
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return UploadPhotoResponse{}, err
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return UploadPhotoResponse{}, err
-	}
-
-	if resp.StatusCode != 200 {
-		return UploadPhotoResponse{}, fmt.Errorf("invalid status code" + resp.Status)
-	}
-
-	upresponse := UploadResponse{}
-	err = json.Unmarshal(body, &upresponse)
-	if err != nil {
-		return UploadPhotoResponse{}, err
-	}
-
-	if upStatus == "ok" {
-		w, h, err := getImageDimensionFromReader(&buf)
-		if err != nil {
-			return UploadPhotoResponse{}, err
-		}
-
-		config := map[string]interface{}{
-			"media_folder": "Instagram",
-			"source_type":  4,
-			"caption":      photo_caption,
-			"upload_id":    strconv.FormatInt(upload_id, 10),
-			"device":       GOINSTA_DEVICE_SETTINGS,
-			"edits": map[string]interface{}{
-				"crop_original_size": []int{w * 1.0, h * 1.0},
-				"crop_center":        []float32{0.0, 0.0},
-				"crop_zoom":          1.0,
-				"filter_type":        filter_type,
-			},
-			"extra": map[string]interface{}{
-				"source_width":  w,
-				"source_height": h,
-			},
-		}
-		data, err := insta.prepareData(config)
-		if err != nil {
-			return UploadPhotoResponse{}, err
-		}
-
-		body, err = insta.sendRequest(&reqOptions{
-			Endpoint: "media/configure/?",
-			PostData: generateSignature(data),
-		})
-		if err != nil {
-			return UploadPhotoResponse{}, err
-		}
-
-		uploadresponse := UploadPhotoResponse{}
-		err = json.Unmarshal(body, &uploadresponse)
-
-		return uploadresponse, err
-	} else {
-		return UploadPhotoResponse{}, fmt.Errorf(upStatus)
-	}
-}
-
-// UploadPhoto can upload your photo file, stored in filesystem with any quality , better to use 87
-func (insta *Instagram) UploadPhoto(photo_path string, photo_caption string, upload_id int64, quality int, filter_type int) (UploadPhotoResponse, error) {
-	f, err := os.Open(photo_path)
-	if err != nil {
-		return UploadPhotoResponse{}, err
-	}
-	defer f.Close()
-
-	return insta.UploadPhotoFromReader(f, photo_caption, upload_id, quality, filter_type)
-}
-
-// NewUploadID return unix nano time
-func (insta *Instagram) NewUploadID() int64 {
-	return time.Now().UnixNano()
-}
-
-// Follow one of instagram users with userID , you can find userID in GetUsername
-func (insta *Instagram) Follow(userID int64) (FollowResponse, error) {
-	resp := FollowResponse{}
-	data, err := insta.prepareData(map[string]interface{}{
-		"user_id": userID,
-	})
-	if err != nil {
-		return resp, err
-	}
-
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("friendships/create/%d/", userID),
-		PostData: generateSignature(data),
-	})
-	if err != nil {
-		return resp, err
-	}
-
-	err = json.Unmarshal(body, &resp)
-
-	return resp, err
-}
-
-// UnFollow one of instagram users with userID , you can find userID in GetUsername
-func (insta *Instagram) UnFollow(userID int64) (UnFollowResponse, error) {
-	resp := UnFollowResponse{}
-	data, err := insta.prepareData(map[string]interface{}{
-		"user_id": userID,
-	})
-	if err != nil {
-		return resp, err
-	}
-
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("friendships/destroy/%d/", userID),
-		PostData: generateSignature(data),
-	})
-	if err != nil {
-		return resp, err
-	}
-
-	err = json.Unmarshal(body, &resp)
-
-	return resp, err
-}
-
-func (insta *Instagram) Block(userID int64) ([]byte, error) {
-	data, err := insta.prepareData(map[string]interface{}{
-		"user_id": userID,
-	})
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("friendships/block/%d/", userID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) UnBlock(userID int64) ([]byte, error) {
-	data, err := insta.prepareData(map[string]interface{}{
-		"user_id": userID,
-	})
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("friendships/unblock/%d/", userID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) Like(mediaID string) ([]byte, error) {
-	data, err := insta.prepareData(map[string]interface{}{
-		"media_id": mediaID,
-	})
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("media/%s/like/", mediaID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) UnLike(mediaID string) ([]byte, error) {
-	data, err := insta.prepareData(map[string]interface{}{
-		"media_id": mediaID,
-	})
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("media/%s/unlike/", mediaID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) DisableComments(mediaID string) ([]byte, error) {
-	data, err := insta.prepareData(map[string]interface{}{
-		"media_id": mediaID,
-	})
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("media/%s/disable_comments/", mediaID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) EnableComments(mediaID string) ([]byte, error) {
-	data, err := insta.prepareData(map[string]interface{}{
-		"media_id": mediaID,
-	})
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("media/%s/enable_comments/", mediaID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) EditMedia(mediaID string, caption string) ([]byte, error) {
-	data, err := insta.prepareData(map[string]interface{}{
-		"caption_text": caption,
-	})
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("media/%s/edit_media/", mediaID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) DeleteMedia(mediaID string) ([]byte, error) {
-	data, err := insta.prepareData(map[string]interface{}{
-		"media_id": mediaID,
-	})
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("media/%s/delete/", mediaID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) RemoveSelfTag(mediaID string) ([]byte, error) {
-	data, err := insta.prepareData()
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("media/%s/remove/", mediaID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) Comment(mediaID, text string) ([]byte, error) {
-	data, err := insta.prepareData(map[string]interface{}{
-		"comment_text": text,
-	})
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("media/%s/comment/", mediaID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) DeleteComment(mediaID, commentID string) ([]byte, error) {
-	data, err := insta.prepareData()
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("media/%s/comment/%s/delete/", mediaID, commentID),
-		PostData: generateSignature(data),
-	})
-}
-
-func (insta *Instagram) GetRecentRecipients() ([]byte, error) {
-	return insta.sendSimpleRequest("direct_share/recent_recipients/")
-}
-
-func (insta *Instagram) GetV2Inbox() (DirectListResponse, error) {
-	result := DirectListResponse{}
-	body, err := insta.sendSimpleRequest("direct_v2/inbox/?")
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-	return result, err
-}
-
-func (insta *Instagram) GetDirectPendingRequests() (DirectPendingRequests, error) {
-	result := DirectPendingRequests{}
-	body, err := insta.sendSimpleRequest("direct_v2/pending_inbox/?")
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-	return result, err
-}
-
-func (insta *Instagram) GetRankedRecipients() (DirectRankedRecipients, error) {
-	result := DirectRankedRecipients{}
-	body, err := insta.sendSimpleRequest("direct_v2/ranked_recipients/?")
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-	return result, err
-}
-
-func (insta *Instagram) GetDirectThread(threadid string) (DirectThread, error) {
-	result := DirectThread{}
-	body, err := insta.sendSimpleRequest("direct_v2/threads/%s/", threadid)
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-	return result, err
-}
-
-func (insta *Instagram) Explore() (ExploreResponse, error) {
-	result := ExploreResponse{}
-	body, err := insta.sendSimpleRequest("discover/explore/")
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-
-	return result, err
-}
-
-func (insta *Instagram) ChangePassword(newpassword string) ([]byte, error) {
-	data, err := insta.prepareData(map[string]interface{}{
-		"old_password":  insta.Informations.Password,
-		"new_password1": newpassword,
-		"new_password2": newpassword,
-	})
-	if err != nil {
-		return []byte{}, err
-	}
-	bytes, err := insta.sendRequest(&reqOptions{
-		Endpoint: "accounts/change_password/",
-		PostData: generateSignature(data),
-	})
-	if err == nil {
-		insta.Informations.Password = newpassword
-	}
-	return bytes, err
-}
-
-func (insta *Instagram) Timeline(maxID string) (r FeedsResponse, err error) {
-	data, err := insta.sendRequest(&reqOptions{
-		Endpoint: "feed/timeline/",
-		Query: map[string]string{
-			"max_id":         maxID,
-			"rank_token":     insta.Informations.RankToken,
-			"ranked_content": "true",
-		},
-	})
-	if err == nil {
-		err = json.Unmarshal(data, &r)
-	}
-
-	return
+	return json.Unmarshal(body, insta)
 }
 
 // getImageDimensionFromReader return image dimension , types is .jpg and .png
@@ -913,235 +422,13 @@ func getImageDimension(imagePath string) (int, int, error) {
 	return getImageDimensionFromReader(file)
 }
 
-func (insta *Instagram) TotalUserFollowing(userID int64) (UsersResponse, error) {
-	resp := UsersResponse{}
-	for {
-		temp_resp, err := insta.UserFollowing(userID, resp.NextMaxID)
-		if err != nil {
-			return UsersResponse{}, err
-		}
-		resp.Users = append(resp.Users, temp_resp.Users...)
-		resp.PageSize += temp_resp.PageSize
-		if !temp_resp.BigList {
-			return resp, nil
-		}
-		resp.NextMaxID = temp_resp.NextMaxID
-		resp.Status = temp_resp.Status
-	}
-}
-
-func (insta *Instagram) TotalUserFollowers(userID int64) (UsersResponse, error) {
-	resp := UsersResponse{}
-	for {
-		temp_resp, err := insta.UserFollowers(userID, resp.NextMaxID)
-		if err != nil {
-			return UsersResponse{}, err
-		}
-		resp.Users = append(resp.Users, temp_resp.Users...)
-		resp.PageSize += temp_resp.PageSize
-		if !temp_resp.BigList {
-			return resp, nil
-		}
-		resp.NextMaxID = temp_resp.NextMaxID
-		resp.Status = temp_resp.Status
-	}
-}
-
-func (insta *Instagram) GetRecentActivity() (RecentActivityResponse, error) {
-	result := RecentActivityResponse{}
-	bytes, err := insta.sendSimpleRequest("news/inbox/?")
+// Explore stores explore menu in Instagram.Explore
+func (insta *Instagram) Explore() error {
+	body, err := insta.sendSimpleRequest("discover/explore/")
 	if err != nil {
-		return result, err
+		return err
 	}
-	err = json.Unmarshal(bytes, &result)
-	if err != nil {
-		return result, err
-	}
-	return result, nil
-}
-
-func (insta *Instagram) GetFollowingRecentActivity() (FollowingRecentActivityResponse, error) {
-	result := FollowingRecentActivityResponse{}
-	bytes, err := insta.sendSimpleRequest("news/?")
-	if err != nil {
-		return result, err
-	}
-	err = json.Unmarshal(bytes, &result)
-	if err != nil {
-		return result, err
-	}
-	return result, nil
-}
-
-func (insta *Instagram) SearchUsername(query string) (SearchUserResponse, error) {
-	result := SearchUserResponse{}
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: "users/search/",
-		Query: map[string]string{
-			"ig_sig_key_version": goInstaSigKeyVersion,
-			"is_typeahead":       "true",
-			"query":              query,
-			"rank_token":         insta.Informations.RankToken,
-		},
-	})
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-
-	return result, err
-}
-
-func (insta *Instagram) SearchTags(query string) (SearchTagsResponse, error) {
-	result := SearchTagsResponse{}
-	body, err := insta.sendRequest(&reqOptions{
-		Endpoint: "tags/search/",
-		Query: map[string]string{
-			"is_typeahead": "true",
-			"rank_token":   insta.Informations.RankToken,
-			"q":            query,
-		},
-	})
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(body, &result)
-
-	return result, err
-}
-
-func (insta *Instagram) SearchFacebookUsers(query string) ([]byte, error) {
-	return insta.sendRequest(&reqOptions{
-		Endpoint: "fbsearch/topsearch/",
-		Query: map[string]string{
-			"query":      query,
-			"rank_token": insta.Informations.RankToken,
-		},
-	})
-}
-
-// DirectMessage sends direct message to recipient.
-// Recipient must be user id.
-func (insta *Instagram) DirectMessage(recipient string, message string) (DirectMessageResponse, error) {
-	result := DirectMessageResponse{}
-	recipients, err := json.Marshal([][]string{{recipient}})
-	if err != nil {
-		return result, err
-	}
-
-	var b bytes.Buffer
-	w := multipart.NewWriter(&b)
-	w.SetBoundary(insta.Informations.UUID)
-	w.WriteField("recipient_users", string(recipients))
-	w.WriteField("client_context", insta.Informations.UUID)
-	w.WriteField("thread_ids", `["0"]`)
-	w.WriteField("text", message)
-	w.Close()
-
-	req, err := http.NewRequest("POST", GOINSTA_API_URL+"direct_v2/threads/broadcast/text/", &b)
-	if err != nil {
-		return result, err
-	}
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "en-en")
-	req.Header.Set("Content-Type", w.FormDataContentType())
-	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("User-Agent", GOINSTA_USER_AGENT)
-
-	client := &http.Client{
-		Jar: insta.Cookiejar,
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return result, err
-	}
-	defer resp.Body.Close()
-
-	body, _ := ioutil.ReadAll(resp.Body)
-
-	if resp.StatusCode != 200 {
-		return result, fmt.Errorf(string(body))
-	}
-
-	json.Unmarshal(body, &result)
-	return result, nil
-}
-
-// GetTrayFeeds - Get all available Instagram stories of your friends
-func (insta *Instagram) GetReelsTrayFeed() (TrayResponse, error) {
-	bytes, err := insta.sendSimpleRequest("feed/reels_tray/")
-	if err != nil {
-		return TrayResponse{}, err
-	}
-
-	result := TrayResponse{}
-	json.Unmarshal([]byte(bytes), &result)
-
-	return result, nil
-}
-
-// GetUserStories - Get all available Instagram stories for the given user id
-func (insta *Instagram) GetUserStories(userID int64) (StoryResponse, error) {
-	result := StoryResponse{}
-	if userID == 0 {
-		return result, nil
-	}
-
-	bytes, err := insta.sendSimpleRequest("feed/user/%d/reel_media/", userID)
-	if err != nil {
-		return result, err
-	}
-
-	json.Unmarshal([]byte(bytes), &result)
-
-	return result, nil
-}
-
-func (insta *Instagram) UserFriendShip(userID int64) (UserFriendShipResponse, error) {
-	result := UserFriendShipResponse{}
-	data, err := insta.prepareData(map[string]interface{}{
-		"user_id": userID,
-	})
-
-	if err != nil {
-		return result, err
-	}
-
-	bytes, err := insta.sendRequest(&reqOptions{
-		Endpoint: fmt.Sprintf("friendships/show/%d/", userID),
-		PostData: generateSignature(data),
-	})
-	if err != nil {
-		return result, err
-	}
-	err = json.Unmarshal(bytes, &result)
-	if err != nil {
-		return result, err
-	}
-	return result, err
-}
-
-func (insta *Instagram) GetPopularFeed() (GetPopularFeedResponse, error) {
-	result := GetPopularFeedResponse{}
-	bytes, err := insta.sendRequest(&reqOptions{
-		Endpoint: "feed/popular/",
-		Query: map[string]string{
-			"people_teaser_supported": "1",
-			"rank_token":              insta.Informations.RankToken,
-			"ranked_content":          "true",
-		},
-	})
-	if err != nil {
-		return result, err
-	}
-	err = json.Unmarshal(bytes, &result)
-	if err != nil {
-		return result, err
-	}
-	return result, err
+	return json.Unmarshal(body, &insta.Explore)
 }
 
 func (insta *Instagram) prepareData(data map[string]interface{}) (string, error) {

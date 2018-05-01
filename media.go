@@ -147,3 +147,174 @@ func (info *MediaInfo) Get() error {
 
 	return json.Unmarshal(body, info)
 }
+
+// Like gives like to media
+func (media *Media) Like() error {
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"media_id": media.ID,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	req := acquireRequest()
+	defer releaseRequest(req)
+	req.SetEndpoint(fmt.Sprintf("media/%s/like/", media.ID))
+	req.SetData(generateSignature(data))
+
+	_, err = insta.sendRequest(req)
+	return err
+}
+
+// Unlike gives unlike to media
+func (media *Media) Unlike() error {
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"media_id": mediaID,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	req := acquireRequest()
+	defer releaseRequest()
+	req.SetEndpoint(fmt.Sprintf("media/%s/unlike/", media.ID))
+	req.SetData(generateSignature(data))
+
+	_, err = insta.sendRequest(req)
+	return err
+}
+
+// DisableComments()
+func (media *Media) DisableComments() error {
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"media_id": mediaID,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	req := acquireRequest()
+	defer releaseRequest()
+	req.SetEndpoint(fmt.Sprintf("media/%s/disable_comments/", media.ID))
+	req.SetData(generateSignature(data))
+
+	_, err = insta.sendRequest(req)
+	return err
+}
+
+// EnableComments
+func (media *Media) EnableComments() error {
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"media_id": mediaID,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	req := acquireRequest()
+	defer releaseRequest()
+	req.SetEndpoint(fmt.Sprintf("media/%s/enable_comments/", media.ID))
+	req.SetData(generateSignature(data))
+
+	_, err = insta.sendRequest(req)
+	return err
+}
+
+// Edit
+func (media *Media) Edit(caption string) error {
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"caption_text": caption,
+		},
+	)
+	if err != nil {
+		return
+	}
+
+	req := acquireRequest()
+	defer releaseRequest()
+	req.SetEndpoint(fmt.Sprintf("media/%s/edit_media/", media.ID))
+	req.SetData(generateSignature(data))
+
+	_, err = insta.sendRequest(req)
+	return err
+}
+
+// Delete
+func (media *Media) Delete() error {
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"media_id": media.ID,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	req := acquireRequest()
+	defer releaseRequest()
+	req.SetEndpoint(fmt.Sprintf("media/%s/delete/", media.ID))
+	req.SetData(generateSignature(data))
+
+	_, err = insta.sendRequest(req)
+	return err
+}
+
+// Tag
+// TODO:
+func (insta *Instagram) RemoveSelfTag(mediaID string) ([]byte, error) {
+	// TODO: Probably there are any Tag object in media.
+	data, err := insta.prepareData(make(map[string]interface{}))
+	if err != nil {
+		return
+	}
+
+	req := acquireRequest()
+	defer releaseRequest()
+	req.SetEndpoint(fmt.Sprintf("media/%s/remove/", media.ID))
+	req.SetData(generateSignature(data))
+
+	_, err = insta.sendRequest(req)
+	return err
+}
+
+// Comment
+func (media *Media) Comment(text string) error {
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"comment_text": text,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	req := acquireRequest()
+	defer releaseRequest()
+	req.SetEndpoint(fmt.Sprintf("media/%s/comment/", media.ID))
+	req.SetData(generateSignature(data))
+
+	_, err = insta.sendRequest(req)
+	return err
+}
+
+// TODO
+func (insta *Instagram) DeleteComment(mediaID, commentID string) ([]byte, error) {
+	data, err := insta.prepareData()
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return insta.sendRequest(&reqOptions{
+		Endpoint: fmt.Sprintf("media/%s/comment/%s/delete/", mediaID, commentID),
+		PostData: generateSignature(data),
+	})
+}

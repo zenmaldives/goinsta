@@ -58,10 +58,10 @@ func (ck *cookies) Cookies() map[string]*fasthttp.Cookie {
 // Instagram ....
 type Instagram struct {
 	Logged bool
-	Info   *ClientInfo
+	Info   ClientInfo
 
 	// Current is current user (logged user)
-	Current *ProfileData
+	Current ProfileData `json:"user,logged_in_user"`
 
 	// DialFunc allows user to use proxy function.
 	// See also: https://godoc.org/github.com/erikdubbelboer/fasthttp#Client.Dial
@@ -71,6 +71,12 @@ type Instagram struct {
 	cookies *cookies
 
 	// Instagram objects
-	User  *User
-	Media *Media
+	User    *User
+	Media   *Media
+	Search  *Search
+	Explore *Explore
+	Inbox   *Inbox
+	Tag     *Tag
+
+	StatusResponse
 }

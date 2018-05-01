@@ -28,14 +28,12 @@ type FeedsResponse struct {
 // TagFeedsResponse struct contains array of MediaItemResponse
 // and can pagination
 // and array of MediaItemResponse for ranked_items
-type TagFeedsResponse struct {
+type FeedTag struct {
 	FeedsResponse
 	RankedItems []MediaItemResponse `json:"ranked_items"`
 }
 
-// TagRelatedResponse struct contains array of related tags,
-// and status
-type TagRelatedResponse struct {
+type RelatedTag struct {
 	Status  string `json:"status"`
 	Related []struct {
 		ID   int64  `json:"id"`
@@ -294,20 +292,9 @@ type CommentResponse struct {
 	Type         int    `json:"type"`
 }
 
-// UsernameResponse information of each instagram users
-type UsernameResponse struct {
-	User
-	ExternalURL         string         `json:"external_url"`
-	Biography           string         `json:"biography"`
-	HDProfilePicURLInfo ImageCandidate `json:"hd_profile_pic_url_info"`
-	UserTagsCount       int            `json:"usertags_count"`
-	MediaCount          int            `json:"media_count"`
-	FollowingCount      int            `json:"following_count"`
-	IsBusiness          bool           `json:"is_business"`
-	AutoExpandChaining  bool           `json:"auto_expand_chaining"`
-	HasChaining         bool           `json:"has_chaining"`
-	FollowerCount       int            `json:"follower_count"`
-	GeoMediaCount       int            `json:"geo_media_count"`
+type userResponse struct {
+	StatusResponse
+	User ProfileData
 }
 
 // UploadResponse struct information of upload method
@@ -334,20 +321,8 @@ type FriendShipResponse struct {
 	IsPrivate       bool `json:"is_private"`
 }
 
-// FollowResponse contains follow response
-type FollowResponse struct {
-	StatusResponse
-	FriendShipStatus FriendShipResponse `json:"friendship_status"`
-}
-
-// UnFollowResponse contains UnFollowResponse
-type UnFollowResponse struct {
-	StatusResponse
-	FriendShipStatus FriendShipResponse `json:"friendship_status"`
-}
-
-// DirectPendingRequests contains direct pending response
-type DirectPendingRequests struct {
+// PendingRequests contains direct pending response
+type PendingInbox struct {
 	Status               string `json:"status"`
 	SeqID                int    `json:"seq_id"`
 	PendingRequestsTotal int    `json:"pending_requests_total"`
@@ -388,8 +363,7 @@ type DirectPendingRequests struct {
 	} `json:"inbox"`
 }
 
-// DirectRankedRecipients contains direct ranked_items recipients
-type DirectRankedRecipients struct {
+type RankedInbox struct {
 	Status           string `json:"status"`
 	Filtered         bool   `json:"filtered"`
 	Expires          int    `json:"expires"`
@@ -680,8 +654,8 @@ type SearchUserResponse struct {
 	} `json:"users"`
 }
 
-// ExploreResponse is data from explore in Instagram
-type ExploreResponse struct {
+// Explore is data from explore in Instagram
+type Explore struct {
 	AutoLoadMoreEnabled bool          `json:"auto_load_more_enabled"`
 	Items               []ExploreItem `json:"items"`
 	MaxID               string        `json:"max_id"`
@@ -1090,8 +1064,8 @@ type ItemMediaShare struct {
 	MediaShare Item `json:"media_share"`
 }
 
-// DirectListResponse is list of directs
-type DirectListResponse struct {
+// DirectList
+type DirectList struct {
 	PendingRequestsTotal int    `json:"pending_requests_total"`
 	SeqID                int    `json:"seq_id"`
 	Status               string `json:"status"`
@@ -1361,7 +1335,7 @@ type TrayUserResponse struct {
 	} `json:"media"`
 }
 
-type StoryResponse struct {
+type Story struct {
 	ID              int     `json:"id"`
 	LatestReelMedia int     `json:"latest_reel_media"`
 	ExpiringAt      int     `json:"expiring_at"`
