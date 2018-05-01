@@ -71,3 +71,29 @@ This code is in no way affiliated with, authorized, maintained, sponsored or end
 Bitcoin : `1KjcfrBPJtM4MfBSGTqpC6RcoEW1KBh15X`
 
 [![Analytics](https://ga-beacon.appspot.com/UA-107698067-1/readme-page)](https://github.com/igrigorik/ga-beacon)
+
+
+## Schema
+
+Instagram
+- Account
+- User:
+  - Feed
+  - Followers
+  - Following
+  - FriendShip # Relation
+  - Story
+  - Threads # Private messages
+- Media:
+  - Info
+  - Comments
+  - Likes
+  - Likers
+- Search:
+  - Location
+  - Username
+  - Tags
+  - Facebook
+- Inbox:
+  - Messages
+  - Pending
