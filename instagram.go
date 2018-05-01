@@ -60,9 +60,6 @@ type Instagram struct {
 	Logged bool
 	Info   ClientInfo
 
-	// Current is current user (logged user)
-	Current ProfileData `json:"user,logged_in_user"`
-
 	// DialFunc allows user to use proxy function.
 	// See also: https://godoc.org/github.com/erikdubbelboer/fasthttp#Client.Dial
 	DialFunc fasthttp.DialFunc
@@ -70,13 +67,75 @@ type Instagram struct {
 	client  *fasthttp.Client
 	cookies *cookies
 
+	// Account stores logged in user data and interactions
+	Account *Accout `json:"user,logged_in_user"`
+
 	// Instagram objects
 	User    *User
 	Media   *Media
 	Search  *Search
 	Explore *Explore
 	Inbox   *Inbox
-	Tag     *Tag
 
 	StatusResponse
+}
+
+// NewViaProxy All requests will use proxy server (example http://<ip>:<port>)
+func NewViaProxy(username, password string, dialFunc fasthttp.DialFunc) *Instagram {
+	insta := New(username, password)
+	insta.DialFunc = dialFunc
+	return insta
+}
+
+// New creates instagram structure
+func New(username, password string) *Instagram {
+	insta := &Instagram{
+		client: &fasthttp.Client{
+			Name: goInstaUserAgent,
+		},
+		cookies: nil,
+		Info: &ClientInfo{
+			DeviceID: generateDeviceID(generateMD5Hash(username + password)),
+			Username: username,
+			Password: password,
+			UUID:     generateUUID(true),
+			PhoneID:  generateUUID(true),
+		},
+	}
+	insta.fill()
+	return insta
+}
+
+// TODO
+func (insta *Instagram) fill() {
+	if insta.User == nil {
+		insta.User = NewUser(insta)
+	}
+	user := insta.User
+	if insta.Current == nil {
+		insta.Current = &ProfileData{}
+	}
+
+	if insta.Current.Feed == nil {
+		insta.Current.Feed = NewFeed(user)
+	}
+	if insta.Inbox == nil {
+		insta.Inbox = NewInbox(insta)
+	}
+	if insta.Current.Following == nil {
+		insta.Current.Following = NewUsers(user, false)
+	}
+	if insta.Current.Followers == nil {
+		insta.Current.Followers = NewUsers(user, true)
+	}
+
+	if insta.Current.insta == nil {
+		insta.Current.insta = insta
+	}
+	if insta.Media == nil {
+		insta.Media = NewMedia(insta)
+	}
+	if insta.Search == nil {
+		insta.Search = NewSearch(insta)
+	}
 }

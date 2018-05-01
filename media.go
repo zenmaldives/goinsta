@@ -49,6 +49,50 @@ type Media struct {
 	Info     *MediaInfo
 	Comments *MediaComments
 	Likers   *MediaLikers
+
+	TakenAt         int    `json:"taken_at"`
+	Pk              int64  `json:"pk"`
+	ID              string `json:"id"`
+	DeviceTimestamp int64  `json:"device_timestamp"`
+	MediaType       int    `json:"media_type"`
+	Code            string `json:"code"`
+	ClientCacheKey  string `json:"client_cache_key"`
+	FilterType      int    `json:"filter_type"`
+	ImageVersions2  struct {
+		Candidates []ImageCandidate `json:"candidates"`
+	} `json:"image_versions2"`
+	OriginalWidth  int  `json:"original_width"`
+	OriginalHeight int  `json:"original_height"`
+	HasAudio       bool `json:"has_audio"`
+	VideoVersions  []struct {
+		URL    string `json:"url"`
+		Type   int    `json:"type"`
+		Height int    `json:"height"`
+		Width  int    `json:"width"`
+	} `json:"video_versions"`
+	User                         User              `json:"user"`
+	OrganicTrackingToken         string            `json:"organic_tracking_token"`
+	LikeCount                    int               `json:"like_count"`
+	HasLiked                     bool              `json:"has_liked"`
+	HasMoreComments              bool              `json:"has_more_comments"`
+	NextMaxID                    int64             `json:"next_max_id"`
+	MaxNumVisiblePreviewComments int               `json:"max_num_visible_preview_comments"`
+	PreviewComments              []CommentResponse `json:"preview_comments"`
+	CommentCount                 int               `json:"comment_count"`
+	Caption                      Caption           `json:"caption"`
+	CaptionIsEdited              bool              `json:"caption_is_edited"`
+	PhotoOfYou                   bool              `json:"photo_of_you"`
+	Algorithm                    string            `json:"algorithm"`
+	ExploreContext               string            `json:"explore_context"`
+	ExploreSourceToken           string            `json:"explore_source_token"`
+	Explore                      struct {
+		Explanation string `json:"explanation"`
+		ActorID     int    `json:"actor_id"`
+		SourceToken string `json:"source_token"`
+	} `json:"explore"`
+	ImpressionToken string `json:"impression_token"`
+
+	account *Account
 }
 
 // NewMedia returns new media

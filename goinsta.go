@@ -90,34 +90,6 @@ var GOINSTA_DEVICE_SETTINGS = map[string]interface{}{
 	"android_release": "4.3",
 }
 
-// NewViaProxy All requests will use proxy server (example http://<ip>:<port>)
-func NewViaProxy(username, password string, dialFunc fasthttp.DialFunc) *Instagram {
-	insta := New(username, password)
-	insta.DialFunc = dialFunc
-	return insta
-}
-
-// New try to fill Instagram struct
-// New does not try to login , it will only fill
-// Instagram struct
-func New(username, password string) *Instagram {
-	insta := &Instagram{
-		client: &fasthttp.Client{
-			Name: goInstaUserAgent,
-		},
-		cookies: nil,
-		Info: &ClientInfo{
-			DeviceID: generateDeviceID(generateMD5Hash(username + password)),
-			Username: username,
-			Password: password,
-			UUID:     generateUUID(true),
-			PhoneID:  generateUUID(true),
-		},
-	}
-	insta.fill()
-	return insta
-}
-
 // Login to Instagram.
 // return error if can't send request to instagram server
 func (insta *Instagram) Login() error {
@@ -275,43 +247,6 @@ func (insta *Instagram) Expose() error {
 	}
 
 	return json.Unmarshal(body, &result)
-}
-
-// TODO
-func (insta *Instagram) fill() {
-	if insta.User == nil {
-		insta.User = NewUser(insta)
-	}
-	user := insta.User
-	if insta.Current == nil {
-		insta.Current = &ProfileData{}
-	}
-
-	if insta.Tag == nil {
-		insta.Tag = NewTag(insta)
-	}
-	if insta.Current.Feed == nil {
-		insta.Current.Feed = NewFeed(user)
-	}
-	if insta.Inbox == nil {
-		insta.Inbox = NewInbox(insta)
-	}
-	if insta.Current.Following == nil {
-		insta.Current.Following = NewUsers(user, false)
-	}
-	if insta.Current.Followers == nil {
-		insta.Current.Followers = NewUsers(user, true)
-	}
-
-	if insta.Current.insta == nil {
-		insta.Current.insta = insta
-	}
-	if insta.Media == nil {
-		insta.Media = NewMedia(insta)
-	}
-	if insta.Search == nil {
-		insta.Search = NewSearch(insta)
-	}
 }
 
 // SetPublicAccount sets account to public

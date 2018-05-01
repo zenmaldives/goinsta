@@ -1120,7 +1120,7 @@ type DirectList struct {
 	PendingRequestsUsers []interface{} `json:"pending_requests_users"`
 }
 
-type FollowingRecentActivityResponse struct {
+type FollowingActivity struct {
 	AutoLoadMoreEnabled bool `json:"auto_load_more_enabled"`
 	NextMaxID           int  `json:"next_max_id"`
 	Stories             []struct {
@@ -1148,123 +1148,61 @@ type FollowingRecentActivityResponse struct {
 		Pk string `json:"pk"`
 	} `json:"stories"`
 	Status string `json:"status"`
+
+	account *Account
 }
 
-type TrayResponse struct {
+func (following *FollowingActivity) Get() error {
+	body, err := following.account.insta.sendSimpleRequest("news/?")
+	if err != nil {
+		return
+	}
+	return json.Unmarshal(body, following)
+}
+
+type Caption struct {
+	Status         string `json:"status"`
+	UserID         int    `json:"user_id"`
+	CreatedAtUtc   int    `json:"created_at_utc"`
+	CreatedAt      int    `json:"created_at"`
+	BitFlags       int    `json:"bit_flags"`
+	User           User   `json:"user"`
+	ContentType    string `json:"content_type"`
+	Text           string `json:"text"`
+	MediaID        int64  `json:"media_id"`
+	Pk             int64  `json:"pk"`
+	HasTranslation bool   `json:"has_translation"`
+	Type           int    `json:"type"`
+}
+
+// Tray is users stories
+type Trays struct {
 	Status string `json:"status"`
-	Tray   []struct {
-		CanReply   bool `json:"can_reply"`
-		ExpiringAt int  `json:"expiring_at"`
-		User       struct {
-			Username         string `json:"username"`
-			FriendshipStatus struct {
-				IncomingRequest bool `json:"incoming_request"`
-				FollowedBy      bool `json:"followed_by"`
-				OutgoingRequest bool `json:"outgoing_request"`
-				Following       bool `json:"following"`
-				Blocking        bool `json:"blocking"`
-				IsPrivate       bool `json:"is_private"`
-			} `json:"friendship_status"`
-			ProfilePicURL string `json:"profile_pic_url"`
-			ProfilePicID  string `json:"profile_pic_id"`
-			FullName      string `json:"full_name"`
-			Pk            int    `json:"pk"`
-			IsVerified    bool   `json:"is_verified"`
-			IsPrivate     bool   `json:"is_private"`
-		} `json:"user"`
-		ID                 int `json:"id"`
-		LatestReelMedia    int `json:"latest_reel_media"`
-		Seen               int `json:"seen"`
-		RankedPosition     int `json:"ranked_position"`
-		SeenRankedPosition int `json:"seen_ranked_position"`
-		Muted              int `json:"muted"`
-		Media              []struct {
-			TakenAt         int    `json:"taken_at"`
-			Pk              int64  `json:"pk"`
-			ID              string `json:"id"`
-			DeviceTimestamp int64  `json:"device_timestamp"`
-			MediaType       int    `json:"media_type"`
-			Code            string `json:"code"`
-			ClientCacheKey  string `json:"client_cache_key"`
-			FilterType      int    `json:"filter_type"`
-			ImageVersions2  struct {
-				Candidates []ImageCandidate `json:"candidates"`
-			} `json:"image_versions2"`
-			OriginalWidth  int  `json:"original_width"`
-			OriginalHeight int  `json:"original_height"`
-			HasAudio       bool `json:"has_audio"`
-			VideoVersions  []struct {
-				URL    string `json:"url"`
-				Type   int    `json:"type"`
-				Height int    `json:"height"`
-				Width  int    `json:"width"`
-			} `json:"video_versions"`
-			User struct {
-				Username                   string `json:"username"`
-				HasAnonymousProfilePicture bool   `json:"has_anonymous_profile_picture"`
-				IsUnpublished              bool   `json:"is_unpublished"`
-				IsFavorite                 bool   `json:"is_favorite"`
-				FriendshipStatus           struct {
-					Following       bool `json:"following"`
-					OutgoingRequest bool `json:"outgoing_request"`
-				} `json:"friendship_status"`
-				ProfilePicURL string `json:"profile_pic_url"`
-				ProfilePicID  string `json:"profile_pic_id"`
-				FullName      string `json:"full_name"`
-				Pk            int    `json:"pk"`
-				IsVerified    bool   `json:"is_verified"`
-				IsPrivate     bool   `json:"is_private"`
-			} `json:"user"`
-			OrganicTrackingToken         string            `json:"organic_tracking_token"`
-			LikeCount                    int               `json:"like_count"`
-			HasLiked                     bool              `json:"has_liked"`
-			HasMoreComments              bool              `json:"has_more_comments"`
-			NextMaxID                    int64             `json:"next_max_id"`
-			MaxNumVisiblePreviewComments int               `json:"max_num_visible_preview_comments"`
-			PreviewComments              []CommentResponse `json:"preview_comments"`
-			CommentCount                 int               `json:"comment_count"`
-			Caption                      struct {
-				Status       string `json:"status"`
-				UserID       int    `json:"user_id"`
-				CreatedAtUtc int    `json:"created_at_utc"`
-				CreatedAt    int    `json:"created_at"`
-				BitFlags     int    `json:"bit_flags"`
-				User         struct {
-					Username                   string `json:"username"`
-					HasAnonymousProfilePicture bool   `json:"has_anonymous_profile_picture"`
-					IsUnpublished              bool   `json:"is_unpublished"`
-					IsFavorite                 bool   `json:"is_favorite"`
-					FriendshipStatus           struct {
-						Following       bool `json:"following"`
-						OutgoingRequest bool `json:"outgoing_request"`
-					} `json:"friendship_status"`
-					ProfilePicURL string `json:"profile_pic_url"`
-					ProfilePicID  string `json:"profile_pic_id"`
-					FullName      string `json:"full_name"`
-					Pk            int    `json:"pk"`
-					IsVerified    bool   `json:"is_verified"`
-					IsPrivate     bool   `json:"is_private"`
-				} `json:"user"`
-				ContentType    string `json:"content_type"`
-				Text           string `json:"text"`
-				MediaID        int64  `json:"media_id"`
-				Pk             int64  `json:"pk"`
-				HasTranslation bool   `json:"has_translation"`
-				Type           int    `json:"type"`
-			} `json:"caption"`
-			CaptionIsEdited    bool   `json:"caption_is_edited"`
-			PhotoOfYou         bool   `json:"photo_of_you"`
-			Algorithm          string `json:"algorithm"`
-			ExploreContext     string `json:"explore_context"`
-			ExploreSourceToken string `json:"explore_source_token"`
-			Explore            struct {
-				Explanation string `json:"explanation"`
-				ActorID     int    `json:"actor_id"`
-				SourceToken string `json:"source_token"`
-			} `json:"explore"`
-			ImpressionToken string `json:"impression_token"`
-		} `json:"items"`
-	} `json:"tray"`
+	Trays  []Tray `json:"tray"`
+
+	account *Account
+}
+
+// Story is stories of any user
+type Story struct {
+	CanReply           bool `json:"can_reply"`
+	ExpiringAt         int  `json:"expiring_at"`
+	User               User
+	ID                 int     `json:"id"`
+	LatestReelMedia    int     `json:"latest_reel_media"`
+	Seen               int     `json:"seen"`
+	RankedPosition     int     `json:"ranked_position"`
+	SeenRankedPosition int     `json:"seen_ranked_position"`
+	Muted              int     `json:"muted"`
+	Media              []Media `json:"items"`
+}
+
+func (tray *Tray) Get() error {
+	body, err := tray.account.insta.sendSimpleRequest("feed/reels_tray/")
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(body, tray)
 }
 
 // TrayUserResponse - Response for specific user tray
@@ -1463,8 +1401,8 @@ type Story struct {
 	Status          string `json:"status"`
 }
 
-// RecentActivityResponse ...
-type RecentActivityResponse struct {
+// RecentActivity ...
+type RecentActivity struct {
 	ContinuationToken int64 `json:"continuation_token"`
 	Counts            struct {
 		PhotosOfYou int64 `json:"photos_of_you"`
@@ -1513,4 +1451,14 @@ type RecentActivityResponse struct {
 
 		Type int64 `json:"type,omitempty"`
 	} `json:"old_stories,omitempty"`
+
+	account *Account
+}
+
+func (recent *RecentActivity) Get() error {
+	body, err := recent.account.insta.sendSimpleRequest("news/inbox/?")
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(body, recent)
 }
