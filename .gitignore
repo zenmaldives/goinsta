@@ -29,5 +29,10 @@ _testmain.go
 .idea/
 
 .vscode/
+<<<<<<< HEAD
 
 .tests/
+=======
+.tests/
+examples/configs/
+>>>>>>> alpha

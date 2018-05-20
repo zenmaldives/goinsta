@@ -56,7 +56,7 @@ func TestUserFollowings(t *testing.T) {
 	if skip {
 		t.Skip("Empty username or password , Skipping ...")
 	}
-	_, err := insta.UserFollowing(insta.Current.ID, "")
+	_, err := insta.UserFollowing(insta.LoggedInUser.ID, "")
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -69,7 +69,7 @@ func TestUserFollowers(t *testing.T) {
 	if skip {
 		t.Skip("Empty username or password , Skipping ...")
 	}
-	_, err := insta.UserFollowers(insta.Current.ID, "")
+	_, err := insta.UserFollowers(insta.LoggedInUser.ID, "")
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -113,7 +113,7 @@ func TestSelfUserFeedWithoutRelogin(t *testing.T) {
 	insta2.Informations.UUID = insta.Informations.UUID
 	insta2.Informations.Username = insta.Informations.Username
 	insta2.Informations.RankToken = insta.Informations.RankToken
-	//insta2.Current = insta.Current
+	//insta2.LoggedInUser = insta.LoggedInUser
 
 	resp2, err := insta2.LatestFeed()
 	for _, item := range resp2.Items {
@@ -573,7 +573,7 @@ func TestUserFriendShip(t *testing.T) {
 		t.Skip("Empty username or password , Skipping ...")
 	}
 
-	resp, err := insta.UserFriendShip(insta.Current.ID)
+	resp, err := insta.UserFriendShip(insta.LoggedInUser.ID)
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -640,7 +640,7 @@ func TestSetPublicAndUnPublicAccount(t *testing.T) {
 		t.Skip("Empty username or password , Skipping ...")
 	}
 	// check account status
-	if insta.Current.IsPrivate {
+	if insta.LoggedInUser.IsPrivate {
 		helperSetPublicAccount(t)
 		helperSetPrivateAccount(t)
 	} else {

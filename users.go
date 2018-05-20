@@ -2,153 +2,404 @@ package goinsta
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-
-	"github.com/erikdubbelboer/fasthttp"
 )
 
-// Users represents instagram list of users
 type Users struct {
-	user  *User
-	insta *Instagram
+	inst *Instagram
 
-	// followers
-	f bool
+	// It's a bit confusing have the same structure
+	// in the Instagram strucure and in the multiple users
+	// calls
 
-	StatusResponse
-	BigList   bool   `json:"big_list"`
-	Users     []User `json:"users"`
-	PageSize  int    `json:"page_size"`
-	NextMaxID string `json:"next_max_id"`
+	err      error
+	endpoint string
+
+	Status   string `json:"status"`
+	BigList  bool   `json:"big_list"`
+	Users    []User `json:"users"`
+	PageSize int    `json:"page_size"`
+	NextID   string `json:"next_max_id"`
 }
 
-// NewUsers returns a list of users.
-//
-// If followers it's true when Get is called it will be load followers.
-// In other case it will be load following.
-func NewUsers(user *User, followers bool) *Users {
-	users := &Users{
-		user:  user,
-		insta: user.insta,
-		f:     followers,
-	}
+func newUsers(inst *Instagram) *Users {
+	users := &Users{inst: inst}
+
 	return users
 }
 
-// Next does not keep last data.
-// To keep last data use AddNext.
+// SetInstagram sets new instagram to user structure
+func (users *Users) SetInstagram(inst *Instagram) {
+	users.inst = inst
+}
+
+var ErrNoMore = errors.New("List end have been reached")
+
+// Next allows to paginate after calling:
+// Account.Follow* and User.Follow*
+//
+// New user list is stored inside Users
+//
+// returns false when list reach the end.
 func (users *Users) Next() bool {
-	// TODO
+	if users.err != nil {
+		return false
+	}
+
+	insta := users.inst
+	endpoint := users.endpoint
+
+	body, err := insta.sendRequest(
+		&reqOptions{
+			Endpoint: endpoint,
+			Query: map[string]string{
+				"max_id":             users.NextID,
+				"ig_sig_key_version": goInstaSigKeyVersion,
+				"rank_token":         insta.rankToken,
+			},
+		},
+	)
+	if err == nil {
+		usrs := Users{}
+		err = json.Unmarshal(body, &usrs)
+		if err == nil {
+			*users = usrs
+			if !usrs.BigList || usrs.NextID == "" {
+				users.err = ErrNoMore
+			}
+			users.inst = insta
+			users.endpoint = endpoint
+			users.setValues()
+			return true
+		}
+	}
+	users.err = err
 	return false
 }
 
-// Get gets following or follower values into Users structure
-//
-// User.ID is the id of the target user.
-// User.Following/Followers.NextMaxID is the id of the pagination. If is the first request set to 0.
-//
-// This function does not get all following/followers. To get all following use #Users.All.
-func (users *Users) Get() (err error) {
-	switch {
-	case users.f:
-		err = users.followers()
-	default:
-		err = users.following()
+func (users *Users) setValues() {
+	for i := range users.Users {
+		users.Users[i].inst = users.inst
+	}
+}
+
+type userResp struct {
+	Status string `json:"status"`
+	User   User   `json:"user"`
+}
+
+// User is the representation of instagram's user profile
+type User struct {
+	inst *Instagram
+
+	ID                         int64  `json:"pk"`
+	Username                   string `json:"username"`
+	FullName                   string `json:"full_name"`
+	Biography                  string `json:"biography"`
+	ProfilePicURL              string `json:"profile_pic_url"`
+	Email                      string `json:"email"`
+	PhoneNumber                string `json:"phone_number"`
+	IsBusiness                 bool   `json:"is_business"`
+	Gender                     int    `json:"gender"`
+	ProfilePicID               string `json:"profile_pic_id"`
+	HasAnonymousProfilePicture bool   `json:"has_anonymous_profile_picture"`
+	IsPrivate                  bool   `json:"is_private"`
+	IsUnpublished              bool   `json:"is_unpublished"`
+	AllowedCommenterType       string `json:"allowed_commenter_type"`
+	IsVerified                 bool   `json:"is_verified"`
+	MediaCount                 int    `json:"media_count"`
+	FollowerCount              int    `json:"follower_count"`
+	FollowingCount             int    `json:"following_count"`
+	FollowingTagCount          int    `json:"following_tag_count"`
+	GeoMediaCount              int    `json:"geo_media_count"`
+	ExternalURL                string `json:"external_url"`
+	HasBiographyTranslation    bool   `json:"has_biography_translation"`
+	ExternalLynxURL            string `json:"external_lynx_url"`
+	BiographyWithEntities      struct {
+		RawText  string        `json:"raw_text"`
+		Entities []interface{} `json:"entities"`
+	} `json:"biography_with_entities"`
+	UsertagsCount                int          `json:"usertags_count"`
+	HasChaining                  bool         `json:"has_chaining"`
+	IsFavorite                   bool         `json:"is_favorite"`
+	IsFavoriteForStories         bool         `json:"is_favorite_for_stories"`
+	IsFavoriteForHighlights      bool         `json:"is_favorite_for_highlights"`
+	CanBeReportedAsFraud         bool         `json:"can_be_reported_as_fraud"`
+	ShowShoppableFeed            bool         `json:"show_shoppable_feed"`
+	ShoppablePostsCount          int          `json:"shoppable_posts_count"`
+	ReelAutoArchive              string       `json:"reel_auto_archive"`
+	HasHighlightReels            bool         `json:"has_highlight_reels"`
+	PublicEmail                  string       `json:"public_email"`
+	PublicPhoneNumber            string       `json:"public_phone_number"`
+	PublicPhoneCountryCode       string       `json:"public_phone_country_code"`
+	ContactPhoneNumber           string       `json:"contact_phone_number"`
+	CityID                       int64        `json:"city_id"`
+	CityName                     string       `json:"city_name"`
+	AddressStreet                string       `json:"address_street"`
+	DirectMessaging              string       `json:"direct_messaging"`
+	Latitude                     float64      `json:"latitude"`
+	Longitude                    float64      `json:"longitude"`
+	Category                     string       `json:"category"`
+	BusinessContactMethod        string       `json:"business_contact_method"`
+	IncludeDirectBlacklistStatus bool         `json:"include_direct_blacklist_status"`
+	HdProfilePicURLInfo          PicURLInfo   `json:"hd_profile_pic_url_info"`
+	HdProfilePicVersions         []PicURLInfo `json:"hd_profile_pic_versions"`
+	School                       School       `json:"school"`
+	Byline                       string       `json:"byline"`
+	SocialContext                string       `json:"social_context,omitempty"`
+	SearchSocialContext          string       `json:"search_social_context,omitempty"`
+	MutualFollowersCount         float64      `json:"mutual_followers_count"`
+	LatestReelMedia              int          `json:"latest_reel_media,omitempty"`
+	IsCallToActionEnabled        bool         `json:"is_call_to_action_enabled"`
+	FbPageCallToActionID         string       `json:"fb_page_call_to_action_id"`
+	Zip                          string       `json:"zip"`
+	Friendship                   Friendship   `json:"friendship_status"`
+}
+
+// Sync updates user info
+func (user *User) Sync() error {
+	insta := user.inst
+	body, err := insta.sendSimpleRequest(urlUserInfo, user.ID)
+	if err == nil {
+		resp := userResp{}
+		err = json.Unmarshal(body, &resp)
+		if err == nil {
+			*user = resp.User
+			user.inst = insta
+		}
 	}
 	return err
 }
 
-func (users *Users) following() error {
-	user := users.user
-	userID := user.getID()
-	if userID == "" {
-		return ErrNoID
-	}
-
-	maxID := users.NextMaxID
-	insta := user.insta
-	req := acquireRequest()
-	req.args = fasthttp.AcquireArgs()
-	defer releaseRequest(req)
-
-	req.SetEndpoint(fmt.Sprintf("friendships/%s/following/", userID))
-	req.args.Set("max_id", maxID)
-	req.args.Set("ig_sig_key_version", goInstaSigKeyVersion)
-	req.args.Set("rank_token", insta.Info.RankToken)
-
-	body, err := insta.sendRequest(req)
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(body, users)
+// Following returns a list of user following.
+//
+// Users.Next can be used to paginate
+//
+// See example: examples/user/following.go
+func (user *User) Following() *Users {
+	users := &Users{}
+	users.inst = user.inst
+	users.endpoint = fmt.Sprintf(urlFollowing, user.ID)
+	return users
 }
 
-func (users *Users) followers() error {
-	user := users.user
-	userID := user.getID()
-	if userID == "" {
-		return ErrNoID
-	}
-
-	maxID := users.NextMaxID
-	insta := user.insta
-	req := acquireRequest()
-	req.args = fasthttp.AcquireArgs()
-	defer releaseRequest(req)
-
-	req.SetEndpoint(fmt.Sprintf("friendships/%s/followers/", userID))
-	req.args.Set("max_id", maxID)
-	req.args.Set("ig_sig_key_version", goInstaSigKeyVersion)
-	req.args.Set("rank_token", insta.Info.RankToken)
-
-	body, err := insta.sendRequest(req)
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(body, users)
+// Followers returns a list of user followers.
+//
+// Users.Next can be used to paginate
+//
+// See example: examples/user/followers.go
+func (user *User) Followers() *Users {
+	users := &Users{}
+	users.inst = user.inst
+	users.endpoint = fmt.Sprintf(urlFollowers, user.ID)
+	return users
 }
 
-// AllFollowing ...
-func (users *Users) All() (err error) {
-	switch {
-	case users.f:
-		err = users.followers()
-	default:
-		err = users.following()
+// Block blocks user
+//
+// This function updates current User.Friendship structure.
+//
+// See example: examples/user/block.go
+func (user *User) Block() error {
+	insta := user.inst
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"user_id": user.ID,
+		},
+	)
+	if err == nil {
+		body, err := insta.sendRequest(
+			&reqOptions{
+				Endpoint: fmt.Sprintf(urlUserBlock, user.ID),
+				Query:    generateSignature(data),
+				IsPost:   true,
+			},
+		)
+		if err == nil {
+			resp := friendResp{}
+			err = json.Unmarshal(body, &resp)
+			user.Friendship = resp.Friendship
+		}
 	}
 	return err
 }
 
-func (users *Users) allFollowing() (err error) {
-	userList := users.Users
-	for {
-		if err = users.following(); err != nil {
-			break
-		}
-
-		userList = append(userList, users.Users...)
-
-		if users.BigList {
-			break
+// Unblock unblocks user
+//
+// This function updates current User.Friendship structure.
+//
+// See example: examples/user/unblock.go
+func (user *User) Unblock() error {
+	insta := user.inst
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"user_id": user.ID,
+		},
+	)
+	if err == nil {
+		body, err := insta.sendRequest(
+			&reqOptions{
+				Endpoint: fmt.Sprintf(urlUserUnblock, user.ID),
+				Query:    generateSignature(data),
+				IsPost:   true,
+			},
+		)
+		if err == nil {
+			resp := friendResp{}
+			err = json.Unmarshal(body, &resp)
+			user.Friendship = resp.Friendship
 		}
 	}
-	return
+	return err
 }
 
-func (users *Users) allFollowers() (err error) {
-	userList := users.Users
-	for {
-		if err = users.followers(); err != nil {
-			break
-		}
-
-		userList = append(userList, users.Users...)
-
-		if users.BigList {
-			break
+// Follow started following some user
+//
+// This function performs a follow call. If user is private
+// you have to wait until he/she accepts you.
+//
+// If the account is public User.Friendship will be updated
+//
+// See example: examples/user/follow.go
+func (user *User) Follow() error {
+	insta := user.inst
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"user_id": user.ID,
+		},
+	)
+	if err == nil {
+		body, err := insta.sendRequest(
+			&reqOptions{
+				Endpoint: fmt.Sprintf(urlUserFollow, user.ID),
+				Query:    generateSignature(data),
+				IsPost:   true,
+			},
+		)
+		if err == nil {
+			resp := friendResp{}
+			err = json.Unmarshal(body, &resp)
+			user.Friendship = resp.Friendship
 		}
 	}
-	return
+	return err
+}
+
+// Unfollow unfollows user
+//
+// User.Friendship will be updated
+//
+// See example: examples/user/unfollow.go
+func (user *User) Unfollow() error {
+	insta := user.inst
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"user_id": user.ID,
+		},
+	)
+	if err == nil {
+		body, err := insta.sendRequest(
+			&reqOptions{
+				Endpoint: fmt.Sprintf(urlUserUnfollow, user.ID),
+				Query:    generateSignature(data),
+				IsPost:   true,
+			},
+		)
+		if err == nil {
+			resp := friendResp{}
+			err = json.Unmarshal(body, &resp)
+			user.Friendship = resp.Friendship
+		}
+	}
+	return err
+}
+
+// FriendShip allows user to get friend relationship.
+//
+// The result is stored in user.Friendship
+func (user *User) FriendShip() error {
+	insta := user.inst
+	data, err := insta.prepareData(
+		map[string]interface{}{
+			"user_id": user.ID,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	body, err := insta.sendRequest(
+		&reqOptions{
+			Endpoint: fmt.Sprintf(urlFriendship, user.ID),
+			Query:    generateSignature(data),
+			IsPost:   true,
+		},
+	)
+	if err == nil {
+		err = json.Unmarshal(body, &user.Friendship)
+	}
+	return err
+}
+
+// Feed returns user feeds (media)
+//
+// minTime is the minimum timestamp of media.
+//
+// For pagination use FeedMedia.Next()
+//
+// See example: examples/user/feed.go
+func (user *User) Feed(minTime []byte) *FeedMedia {
+	insta := user.inst
+	timestamp := b2s(minTime)
+
+	media := &FeedMedia{}
+	media.timestamp = timestamp
+	media.inst = insta
+	media.endpoint = urlUserFeed
+	media.uid = user.ID
+	return media
+}
+
+// Stories returns user stories
+//
+// Use StoryMedia.Next for pagination.
+//
+// See example: examples/user/stories.go
+func (user *User) Stories() *StoryMedia {
+	media := &StoryMedia{}
+	media.uid = user.ID
+	media.inst = user.inst
+	media.endpoint = urlUserStories
+	return media
+}
+
+// Tags returns media where user is tagged in
+//
+// For pagination use FeedMedia.Next()
+//
+// See example: examples/user/tags.go
+func (user *User) Tags(minTimestamp []byte) (*FeedMedia, error) {
+	timestamp := b2s(minTimestamp)
+	body, err := user.inst.sendRequest(
+		&reqOptions{
+			Endpoint: fmt.Sprintf(urlUserTags, user.ID),
+			Query: map[string]string{
+				"max_id":         "",
+				"rank_token":     user.inst.rankToken,
+				"min_timestamp":  timestamp,
+				"ranked_content": "true",
+			},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	media := &FeedMedia{}
+	err = json.Unmarshal(body, media)
+	media.inst = user.inst
+	media.endpoint = urlUserTags
+	media.uid = user.ID
+	return media, err
 }
