@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/erikdubbelboer/fasthttp"
 	"github.com/spf13/cast"
 )
 
@@ -36,65 +37,55 @@ func (insta *Instagram) sendSimpleRequest(uri string, a ...interface{}) (body []
 }
 
 func (inst *Instagram) sendRequest(o *reqOptions) (body []byte, err error) {
+	var args *fasthttp.Args
 	method := "GET"
 	if o.IsPost {
 		method = "POST"
 	}
 
-	u, err := url.Parse(goInstaAPIUrl + o.Endpoint)
-	if err != nil {
-		return nil, err
-	}
+	url := bytebufferpool.Get()
+	url.WriteString(goInstaAPIUrl)
+	url.WriteString(o.Endpoint)
 
-	vs := url.Values{}
-	bf := bytes.NewBuffer([]byte{})
+	req := fasthttp.AcquireRequest()
+	res := fasthttp.AcquireResponse()
+
+	req.Header.SetMethod(method)
 
 	for k, v := range o.Query {
-		vs.Add(k, v)
+		args.Add(k, v)
 	}
 
 	if o.IsPost {
-		bf.WriteString(vs.Encode())
+		args.WriteTo(req.BodyWriter())
 	} else {
 		for k, v := range u.Query() {
-			vs.Add(k, strings.Join(v, " "))
+			args.Add(k, strings.Join(v, " "))
 		}
 
-		u.RawQuery = vs.Encode()
+		url.WriteString("?")
+		url.Write(args.QueryString())
 	}
-
-	var req *http.Request
-	req, err = http.NewRequest(method, u.String(), bf)
-	if err != nil {
-		return
-	}
+	req.SetRequestURIBytes(url.B)
 
 	req.Header.Set("Connection", "close")
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Content-type", "application/x-www-form-urlencoded; charset=UTF-8")
 	req.Header.Set("Cookie2", "$Version=1")
 	req.Header.Set("Accept-Language", "en-US")
-	req.Header.Set("User-Agent", goInstaUserAgent)
+	// setting cookie
+	inst.j.AddToRequest(req)
 
-	resp, err := inst.c.Do(req)
+	err = inst.c.Do(req, res)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	// getting cookies
+	inst.j.ResponseCookies(res)
 
-	u, _ = url.Parse(goInstaAPIUrl)
-	for _, value := range inst.c.Jar.Cookies(u) {
-		if strings.Contains(value.Name, "csrftoken") {
-			inst.token = value.Value
-		}
-	}
+	body := res.Body()
 
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-
-	switch resp.StatusCode {
+	switch res.StatusCode() {
 	case 200:
 	default:
 		ierr := instaError{}

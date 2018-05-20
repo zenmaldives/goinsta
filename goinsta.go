@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
-	"net/http/cookiejar"
 	neturl "net/url"
 	"strconv"
 	"time"
+
+	"github.com/erikdubbelboer/fasthttp"
+	"github.com/themester/fcookiejar"
 )
 
 // Instagram represent the main API handler
@@ -55,7 +56,8 @@ type Instagram struct {
 	// Inbox are instagram message/chat system.
 	Inbox *Inbox
 
-	c *http.Client
+	c *fasthttp.Client
+	j *cookiejar.CookieJar
 }
 
 // SetDeviceID sets device id
@@ -83,11 +85,10 @@ func New(username, password string) *Instagram {
 		),
 		uuid: generateUUID(), // both uuid must be differents
 		pid:  generateUUID(),
-		c: &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-			},
+		c: &fasthttp.Client{
+			Name: goInstaUserAgent,
 		},
+		j: cookiejar.AcquireCookieJar(),
 	}
 	inst.init()
 
@@ -106,6 +107,7 @@ func (inst *Instagram) init() {
 func (inst *Instagram) SetProxy(url string) error {
 	uri, err := neturl.Parse(url)
 	if err == nil {
+		// TODO
 		inst.c.Transport = &http.Transport{
 			Proxy: http.ProxyURL(uri),
 		}
